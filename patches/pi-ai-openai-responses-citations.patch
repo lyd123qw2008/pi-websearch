@@ -1,0 +1,47 @@
+--- a/openai-responses-shared.js
++++ b/openai-responses-shared.js
+@@ -55,6 +55,33 @@
+     }
+     return output;
+ }
++
++/**
++ * Convert OpenAI Responses URL annotations into ordinary Markdown links.
++ * Pi's TUI already renders Markdown links as terminal hyperlinks, so this
++ * keeps native web_search fast while avoiding provider-specific citation UI.
++ */
++function formatUrlCitations(item) {
++    const seen = new Set();
++    const lines = [];
++    for (const part of item.content ?? []) {
++        if (part?.type !== "output_text")
++            continue;
++        for (const annotation of part.annotations ?? []) {
++            if (annotation?.type !== "url_citation" || typeof annotation.url !== "string")
++                continue;
++            if (seen.has(annotation.url))
++                continue;
++            seen.add(annotation.url);
++            const title = String(annotation.title || annotation.url)
++                .replace(/[\[\]\r\n]/g, (value) => value === "\r" || value === "\n" ? " " : `\\${value}`)
++                .trim();
++            const safeUrl = annotation.url.replace(/>/g, "%3E");
++            lines.push(`- [${title || safeUrl}](<${safeUrl}>)`);
++        }
++    }
++    return lines.length > 0 ? `\n\n### Sources\n${lines.join("\n")}` : "";
++}
+ // =============================================================================
+ // Message conversion
+ // =============================================================================
+@@ -591,6 +618,10 @@
+             }
+             else if (item.type === "message" && slot?.type === "text") {
+                 slot.block.text = item.content?.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("") || "";
++                // Remove any raw platform citation tokens if a gateway included them
++                // as text, then append native Responses URL annotations as Markdown.
++                slot.block.text = slot.block.text.replace(/cite[^]*/g, "").trimEnd();
++                slot.block.text += formatUrlCitations(item);
+                 slot.block.textSignature = encodeTextSignatureV1(item.id, item.phase ?? undefined);
+                 stream.push({
+                     type: "text_end",

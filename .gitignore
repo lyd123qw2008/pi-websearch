@@ -1,0 +1,11 @@
+node_modules/
+.pi/
+*.log
+*.bak
+*.bak-*
+auth.json
+settings.json
+models.json
+sessions/
+.env
+.env.*

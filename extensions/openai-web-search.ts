@@ -4,13 +4,14 @@ const TARGET_PROVIDER = "codex-local";
 const TARGET_API = "openai-responses";
 
 // OpenAI Responses API hosted web search tool. It is deliberately not added to
-// models.json so web search remains off unless the user enables it for a turn.
+// models.json; this extension keeps it available by default for the target provider.
 const WEB_SEARCH_TOOL = {
 	type: "web_search",
 	search_context_size: "medium",
 };
 
-let enabled = false;
+const DEFAULT_ENABLED = true;
+let enabled = DEFAULT_ENABLED;
 
 function isTargetModel(ctx: ExtensionContext): boolean {
 	return ctx.model?.provider === TARGET_PROVIDER && ctx.model.api === TARGET_API;
@@ -58,9 +59,10 @@ export default function openaiWebSearchExtension(pi: ExtensionAPI): void {
 		},
 	});
 
-	// Search is intentionally session-local and defaults to off after startup or /reload.
+	// Native search is enabled by default for every new session and after /reload.
+	// `/web-search off` still disables it for the current session.
 	pi.on("session_start", (_event, ctx) => {
-		enabled = false;
+		enabled = DEFAULT_ENABLED;
 		updateStatus(ctx);
 	});
 

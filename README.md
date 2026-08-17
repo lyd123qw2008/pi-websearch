@@ -22,7 +22,7 @@ It does **not** run a second search engine. It does **not** use DuckDuckGo, `pi-
   - `/web-search on`
   - `/web-search off`
   - `/web-search status`
-  - default off for every session
+  - enabled by default for every session; `/web-search off` disables it for the current session
   - only injects the hosted tool for `codex-local` + `openai-responses`
   - preserves Pi's existing tools
 - `patches/pi-ai-openai-responses-citations.patch`
@@ -102,11 +102,13 @@ Test with:
 必须使用 OpenAI Responses 原生 web_search，不要抓取网页全文。搜索今天深圳天气，并列出 3 个来源。
 ```
 
-Disable it again:
+Disable it for the current session:
 
 ```text
 /web-search off
 ```
+
+The next new session or `/reload` enables native search again by default.
 
 Expected output:
 

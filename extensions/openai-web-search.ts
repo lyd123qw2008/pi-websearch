@@ -1,17 +1,64 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const TARGET_PROVIDER = "codex-local";
 const TARGET_API = "openai-responses";
+const DEFAULT_ENABLED = true;
+const CONFIG_PATH = join(
+	process.env.USERPROFILE || process.env.HOME || process.cwd(),
+	".pi",
+	"web-search.json",
+);
 
 // OpenAI Responses API hosted web search tool. It is deliberately not added to
-// models.json; this extension keeps it available by default for the target provider.
+// models.json; this extension reads the persistent nativeWebSearch setting below.
 const WEB_SEARCH_TOOL = {
 	type: "web_search",
 	search_context_size: "medium",
 };
 
-const DEFAULT_ENABLED = true;
 let enabled = DEFAULT_ENABLED;
+
+type JsonObject = Record<string, unknown>;
+
+function isJsonObject(value: unknown): value is JsonObject {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readConfig(): JsonObject {
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+		return isJsonObject(parsed) ? parsed : {};
+	} catch {
+		return {};
+	}
+}
+
+function readPersistentEnabled(): boolean {
+	const config = readConfig();
+	const native = config.nativeWebSearch;
+	if (isJsonObject(native) && typeof native.enabled === "boolean") {
+		return native.enabled;
+	}
+	return DEFAULT_ENABLED;
+}
+
+function persistEnabled(value: boolean): string | undefined {
+	try {
+		const config = readConfig();
+		const current = isJsonObject(config.nativeWebSearch) ? config.nativeWebSearch : {};
+		config.nativeWebSearch = {
+			...current,
+			enabled: value,
+		};
+		mkdirSync(dirname(CONFIG_PATH), { recursive: true });
+		writeFileSync(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+		return undefined;
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+}
 
 function isTargetModel(ctx: ExtensionContext): boolean {
 	return ctx.model?.provider === TARGET_PROVIDER && ctx.model.api === TARGET_API;
@@ -29,29 +76,41 @@ function toolType(value: unknown): string | undefined {
 
 export default function openaiWebSearchExtension(pi: ExtensionAPI): void {
 	pi.registerCommand("web-search", {
-		description: "开关 codex-local 的 OpenAI Responses web_search：on、off 或 status",
+		description: "开关并持久化 codex-local 的 OpenAI Responses web_search：on、off 或 status",
 		handler: async (args, ctx) => {
 			const action = args.trim().toLowerCase();
 
 			if (action === "on") {
 				enabled = true;
+				const error = persistEnabled(true);
 				updateStatus(ctx);
 				ctx.ui.notify(
-					"OpenAI 原生 web_search 已开启（仅对 codex-local / openai-responses 生效）",
-					"info",
+					error
+						? `OpenAI 原生 web_search 已开启，但保存配置失败：${error}`
+						: "OpenAI 原生 web_search 已开启，并已保存到 ~/.pi/web-search.json",
+					error ? "warning" : "info",
 				);
 				return;
 			}
 
 			if (action === "off") {
 				enabled = false;
+				const error = persistEnabled(false);
 				updateStatus(ctx);
-				ctx.ui.notify("OpenAI 原生 web_search 已关闭", "info");
+				ctx.ui.notify(
+					error
+						? `OpenAI 原生 web_search 已关闭，但保存配置失败：${error}`
+						: "OpenAI 原生 web_search 已关闭，并已保存到 ~/.pi/web-search.json",
+					error ? "warning" : "info",
+				);
 				return;
 			}
 
 			if (!action || action === "status") {
-				ctx.ui.notify(`OpenAI 原生 web_search 当前为 ${enabled ? "开启" : "关闭"}`, "info");
+				ctx.ui.notify(
+					`OpenAI 原生 web_search 当前为 ${enabled ? "开启" : "关闭"}（持久化配置）`,
+					"info",
+				);
 				return;
 			}
 
@@ -59,10 +118,9 @@ export default function openaiWebSearchExtension(pi: ExtensionAPI): void {
 		},
 	});
 
-	// Native search is enabled by default for every new session and after /reload.
-	// `/web-search off` still disables it for the current session.
+	// Restore the persisted setting for every new session and /reload.
 	pi.on("session_start", (_event, ctx) => {
-		enabled = DEFAULT_ENABLED;
+		enabled = readPersistentEnabled();
 		updateStatus(ctx);
 	});
 

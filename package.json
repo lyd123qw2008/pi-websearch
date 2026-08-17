@@ -1,5 +1,5 @@
 {
-  "name": "pi-native-web-search-citations",
+  "name": "pi-websearch",
   "version": "0.1.0",
   "description": "Native OpenAI Responses web_search for Pi with Markdown-rendered URL citations",
   "private": true,

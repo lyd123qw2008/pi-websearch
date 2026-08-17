@@ -1,4 +1,4 @@
-# Pi Native Web Search Citations
+# pi-websearch
 
 Use the provider's native OpenAI Responses `web_search` tool in Pi, while rendering returned URL citations as ordinary Markdown links.
 
@@ -57,7 +57,7 @@ C:/Users/<user>/.pi/agent/extensions/openai-web-search.ts
 Or install this repository as a Pi package after publishing it:
 
 ```text
-pi install git:github.com/<user>/pi-native-web-search-citations
+pi install git:github.com/<user>/pi-websearch
 ```
 
 ## Apply the pi-ai patch

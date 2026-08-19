@@ -2,8 +2,9 @@
  * Render OpenAI Responses URL annotations in a terminal-friendly format.
  *
  * The Responses API gives URL citation spans (`start_index`/`end_index`).
- * We preserve those spans by placing a compact, inline source label and URL
- * next to the supported claim.
+ * We preserve those spans by placing a compact, inline domain link next to
+ * the supported claim. The TUI shows the domain while OSC-8 keeps the full URL
+ * as the hyperlink destination.
  */
 
 function isUrlCitation(annotation) {
@@ -112,14 +113,16 @@ function buildCitationModel(item) {
 }
 
 function formatInlineSource(source) {
-  const domain = getDomain(source.url);
-  const title = escapeMarkdownLabel(source.title || domain || source.url);
-  return `来源：${title} (<${safeMarkdownUrl(source.url)}>)`;
+  const label = escapeMarkdownLabel(
+    getDomain(source.url) || source.title || source.url,
+  );
+  return `([${label}](<${safeMarkdownUrl(source.url)}>))`;
 }
 
 function insertInlineSources(text, citations, representedUrls) {
   const insertions = [];
   const seenAtPosition = new Set();
+  const sourceCountAtEnd = new Map();
 
   for (const { annotation, source } of citations) {
     const endIndex = getIndex(annotation, "end_index");
@@ -138,15 +141,17 @@ function insertInlineSources(text, citations, representedUrls) {
     if (seenAtPosition.has(key)) continue;
     seenAtPosition.add(key);
     representedUrls.add(source.url);
+    const countAtEnd = sourceCountAtEnd.get(endIndex) ?? 0;
+    sourceCountAtEnd.set(endIndex, countAtEnd + 1);
     insertions.push({
       endIndex,
       sourceIndex: source.index,
-      marker: `\n${formatInlineSource(source)}`,
+      marker: `${countAtEnd === 0 ? " " : "\n"}${formatInlineSource(source)}`,
     });
   }
 
   // Insert from right to left so provider indexes remain stable. For sources
-  // ending at the same character, preserve annotation order.
+  // ending at the same character, preserve annotation order on separate lines.
   insertions.sort(
     (left, right) =>
       right.endIndex - left.endIndex || right.sourceIndex - left.sourceIndex,
@@ -168,7 +173,7 @@ function formatSourceFallback(sources) {
 }
 
 /**
- * Return only the deduplicated source index suffix.
+ * Return only the deduplicated fallback source-link suffix.
  * This is useful for callers that already have a separately rendered body.
  */
 export function formatUrlCitations(item) {
@@ -177,8 +182,8 @@ export function formatUrlCitations(item) {
 }
 
 /**
- * Render output text with inline source labels and URLs next to supported
- * claims. Sources without usable span positions are appended as a fallback.
+ * Render output text with inline domain links next to supported claims.
+ * Sources without usable span positions are appended as a fallback.
  */
 export function renderResponseText(item) {
   const { parts, sources } = buildCitationModel(item);

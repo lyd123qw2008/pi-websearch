@@ -1,6 +1,6 @@
 --- a/openai-responses-shared.js
 +++ b/openai-responses-shared.js
-@@ -59,5 +59,136 @@
+@@ -59,5 +59,138 @@
 -/**
 - * Convert OpenAI Responses URL annotations into ordinary Markdown links.
 - * Pi's TUI already renders Markdown links as terminal hyperlinks, so this
@@ -98,13 +98,13 @@
 +    return { parts, sources };
 +}
 +function formatInlineSource(source) {
-+    const domain = getDomain(source.url);
-+    const title = escapeMarkdownLabel(source.title || domain || source.url);
-+    return `来源：${title} (<${safeMarkdownUrl(source.url)}>)`;
++    const label = escapeMarkdownLabel(getDomain(source.url) || source.title || source.url);
++    return `([${label}](<${safeMarkdownUrl(source.url)}>))`;
 +}
 +function insertInlineSources(text, citations, representedUrls) {
 +    const insertions = [];
 +    const seenAtPosition = new Set();
++    const sourceCountAtEnd = new Map();
 +    for (const { annotation, source } of citations) {
 +        const endIndex = getIndex(annotation, "end_index");
 +        if (endIndex === undefined || endIndex > text.length)
@@ -122,14 +122,16 @@
 +            continue;
 +        seenAtPosition.add(key);
 +        representedUrls.add(source.url);
++        const countAtEnd = sourceCountAtEnd.get(endIndex) ?? 0;
++        sourceCountAtEnd.set(endIndex, countAtEnd + 1);
 +        insertions.push({
 +            endIndex,
 +            sourceIndex: source.index,
-+            marker: `\n${formatInlineSource(source)}`,
++            marker: `${countAtEnd === 0 ? " " : "\n"}${formatInlineSource(source)}`,
 +        });
 +    }
 +    // Insert from right to left so provider indexes remain stable. For
-+    // sources ending at the same character, preserve annotation order.
++    // sources ending at the same character, preserve annotation order on separate lines.
 +    insertions.sort((left, right) => right.endIndex - left.endIndex || right.sourceIndex - left.sourceIndex);
 +    let result = text;
 +    for (const insertion of insertions) {
@@ -142,7 +144,7 @@
 +        return "";
 +    return `\n\n${sources.map(formatInlineSource).join("\n")}`;
 +}
-@@ -65,19 +196,15 @@
+@@ -65,19 +198,15 @@
 -    const seen = new Set();
 -    const lines = [];
 -    for (const part of item.content ?? []) {
@@ -177,12 +179,12 @@
 +    const cleanedText = cleanRawCitationTokens(text);
 +    const fallbackSources = sources.filter((source) => !representedUrls.has(source.url) && !cleanedText.includes(source.url));
 +    return cleanedText + formatSourceFallback(fallbackSources);
-@@ -620,5 +747,3 @@
+@@ -620,5 +749,3 @@
 -                slot.block.text = item.content?.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("") || "";
 -                // Remove any raw platform citation tokens if a gateway included them
 -                // as text, then append native Responses URL annotations as Markdown.
 -                slot.block.text = slot.block.text.replace(/cite[^]*/g, "").trimEnd();
 -                slot.block.text += formatUrlCitations(item);
-+                // Render native Responses URL annotations as inline source
-+                // labels and visible URLs beside the supported claim.
++                // Render native Responses URL annotations as inline domain
++                // links beside the supported claim.
 +                slot.block.text = renderResponseText(item);

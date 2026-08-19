@@ -1,10 +1,11 @@
 {
   "name": "pi-websearch",
   "version": "0.1.0",
-  "description": "Native OpenAI Responses web_search for Pi with Markdown-rendered URL citations",
+  "description": "Pi package that returns native OpenAI Responses web-search results to the parent model",
   "private": true,
   "type": "module",
   "license": "MIT",
+  "keywords": ["pi-package", "web-search", "openai-responses"],
   "scripts": {
     "test": "node --test"
   },

@@ -1,101 +1,89 @@
 # pi-websearch
 
-Use the provider's native OpenAI Responses `web_search` tool in Pi, while
-rendering returned URL citations as complete visible URLs next to the claims they support.
+A standalone Pi package that registers a small host-side `web_search` tool.
+The tool calls the configured `codex-local` OpenAI Responses endpoint with the
+native Responses `web_search` tool, then returns the nested search result to the
+parent Pi model.
 
-This follows Codex CLI's simple terminal behavior:
+The parent model decides the final answer format from the user's prompt. The
+plugin does not impose `[1]` citations, a `Sources:` section, a fixed list
+layout, or a title/URL template.
 
-```text
-OpenAI Responses web_search
-        ↓
-URL annotations from the provider
-        ↓
-Inline complete URL
-        ↓
-Pi's existing Markdown/TUI hyperlink renderer
-```
-
-It does **not** run a second search engine. It does **not** use DuckDuckGo, `pi-web-access` search, or a custom function tool for the search itself.
-
-## What is included
-
-- `extensions/openai-web-search.ts`
-  - `/web-search on`
-  - `/web-search off`
-  - `/web-search status`
-  - reads persistent state from `~/.pi/web-search.json` at startup
-  - `/web-search on|off` updates `nativeWebSearch.enabled` for future sessions
-  - only injects the hosted tool for `codex-local` + `openai-responses`
-  - adds a routing instruction so the model uses `web_search` directly instead of calling external APIs through bash/Python
-  - preserves Pi's existing tools
-- `patches/pi-ai-openai-responses-citations.patch`
-  - reads `url_citation` annotations from Responses output items
-  - places `([https://...](<https://...>))` next to the supported claim
-  - shows the complete URL even when OSC-8 hyperlinks are unavailable
-  - avoids duplicating URLs already emitted by the model
-  - falls back to standalone complete URLs when span positions are unavailable
-  - removes raw `cite...` tokens if a gateway emits them as text
-- `src/format-url-citations.mjs`
-  - small, independently testable copy of the rendering logic
-
-## Requirements
-
-- Pi with an OpenAI Responses-compatible model/provider
-- A backend that accepts:
-
-  ```json
-  { "type": "web_search" }
-  ```
-
-- The backend must preserve Responses URL annotations if source placement is required
-
-The patch targets the generated `@earendil-works/pi-ai/dist/api/openai-responses-shared.js` file used by the installed Pi package. It is version-sensitive and should be reapplied after a Pi/pi-ai update.
-
-## Install the extension
-
-Copy the extension into the global Pi extension directory:
+## Architecture
 
 ```text
-C:/Users/<user>/.pi/agent/extensions/openai-web-search.ts
+Pi Agent / parent model
+   ↓
+pi-websearch web_search tool
+   ↓
+codex-local Responses endpoint
+   ↓
+Native Responses web_search
+   ↓
+Nested Codex output_text
+   ↓
+Tool result returned to the parent model
+   ↓
+Parent model writes the final answer
 ```
 
-Or install this repository as a Pi package after publishing it:
+This is intentionally a thin adapter. It does not reimplement Codex citation
+formatting or final-answer rendering.
+
+## Responsibilities
+
+### Plugin
+
+- Register `web_search`.
+- Reuse the active `codex-local` model's endpoint and authentication.
+- Send the original user request together with the search query.
+- Use native Responses `web_search`.
+- Extract `response.output_text` or message `output_text` content.
+- Return that text unchanged as the tool result.
+- Report request failures or empty results.
+- Provide `/web-search on`, `/web-search off`, and `/web-search status`.
+
+### Parent model
+
+- Decide whether a search is needed.
+- Decide the language and level of detail.
+- Decide whether to use paragraphs, lists, tables, Markdown links, title/URL
+  lines, `[1]` citations, or `Sources:`.
+- Produce the final answer for the user.
+
+## What the plugin does not do
+
+The plugin deliberately does not:
+
+- insert or renumber `[1]`, `[2]`, etc.;
+- generate a `Sources:` section;
+- parse or reposition citation spans;
+- rewrite Markdown links;
+- deduplicate or relabel visible sources;
+- append a synthetic source fallback;
+- clean or transform the nested result text;
+- render a separate TUI-only final entry;
+- terminate the parent model's turn;
+- provide `/web-search format numbered`;
+- patch `pi-ai`, `pi-tui`, `pi-coding-agent`, or `node_modules`.
+
+The nested result is intentionally passed through unchanged so the parent model
+can use it as research context and follow the user's original instructions.
+
+## Install
+
+For the current local development package:
 
 ```text
-pi install git:github.com/<user>/pi-websearch
+pi install D:/liuyongdan/code/pi-websearch
 ```
 
-## Apply the pi-ai patch
+The package is enabled through Pi's settings package list. It does not require
+copying an extension into `~/.pi/agent/extensions/`.
 
-Locate:
+## Configuration
 
-```text
-@earendil-works/pi-ai/dist/api/openai-responses-shared.js
-```
-
-Back up the file, then apply:
-
-```text
-patches/pi-ai-openai-responses-citations.patch
-```
-
-A future version should replace the generated-file patch with a source-level patch or a maintained Pi package hook.
-
-## Configure the model
-
-The model must use:
-
-```json
-{
-  "api": "openai-responses"
-}
-```
-
-The extension currently targets provider `codex-local`. Adjust `TARGET_PROVIDER` in the extension if another provider should receive the native search tool.
-
-## Use it
-
-The extension reads this setting at startup:
+The only persistent setting is whether the plugin-owned search tool is enabled:
 
 ```json
 {
@@ -105,7 +93,7 @@ The extension reads this setting at startup:
 }
 ```
 
-You can change and persist it from Pi:
+Inside interactive Pi:
 
 ```text
 /web-search on
@@ -113,41 +101,73 @@ You can change and persist it from Pi:
 /web-search status
 ```
 
-Test with:
+The package expects the active model to be:
 
 ```text
-必须使用 OpenAI Responses 原生 web_search，不要抓取网页全文。搜索今天深圳天气，并列出 3 个来源。
+provider: codex-local
+api: openai-responses
 ```
 
-After `/web-search on` or `/web-search off`, the selected state is restored by the next new session or `/reload`.
+The base URL and authentication are taken from Pi's normal model configuration.
+No API key, proxy URL, session, or model credential is stored in this package.
 
-Expected terminal output:
+## Nested request
+
+The plugin sends a small instruction block with the original request and the
+search query:
 
 ```text
-The answer is supported by the official documentation. (https://example.com)
+Use the native web search tool to answer the original user's request.
+Return only the search result for the parent model.
+Follow the original user's language, scope, count, and requested output format.
+Preserve exact page titles and complete URLs when the user asks for them or when they are useful.
+Do not mention this nested search call or add planning commentary.
+Do not invent sources or URLs.
 ```
 
-The complete URL is visible text and is also the OSC-8 hyperlink destination
-when the terminal supports clickable links. In raw `-p --mode text` Markdown,
-the same output is represented as `([https://example.com](<https://example.com>))`.
-If the provider does not return annotation positions, the patch keeps the
-answer intact and appends standalone complete URLs as a fallback. URLs already
-present in the model's answer are not duplicated.
+There is no fixed citation or output template.
 
-## Important limitations
+## Runtime behavior
 
-- `store: false` and local Pi session handling are separate from citation rendering.
-- The model may still refuse a prompt that explicitly asks it to call the OpenAI API itself; ask for the information normally (for example, `查询微软新闻`) and let the extension route it to `web_search`.
-- If the proxy strips `url_citation` annotations, the formatter cannot place a complete URL beside the supported claim; URLs already emitted by the model remain untouched.
-- The patch modifies an installed generated file and may be overwritten by package updates.
-- Do not commit API keys, private proxy URLs, Pi sessions, model credentials, or backup files.
+The tool uses a normal Pi tool result. It does not install a custom renderer and
+does not use `terminate: true`:
+
+```text
+user request
+  ↓
+web_search tool execution
+  ↓
+search result tool message
+  ↓
+parent model response
+  ↓
+normal Pi rendering
+```
+
+TUI, text, JSON, and RPC modes therefore share the same basic behavior.
+
+## Security and boundaries
+
+- Only `codex-local` with `openai-responses` is targeted.
+- Authentication is resolved through Pi's public `ModelRegistry` API.
+- Native Responses `web_search` is used inside the nested request.
+- The plugin does not use bash, Python, curl, browser tools, DuckDuckGo, or
+  external search APIs as a fallback.
+- The plugin does not modify Pi installation files or generated dependencies.
+- If the nested request fails, the tool reports the failure instead of inventing
+  a result.
 
 ## Tests
 
 ```text
 npm test
+node --check src/extract-responses-text.mjs
+git diff --check
 ```
 
-The test suite validates inline source placement, duplicate-URL suppression,
-source-only fallback, same-position ordering, CJK text, Markdown escaping, and
-raw marker cleanup.
+Tests cover the minimal response-text extraction path:
+
+- canonical `response.output_text`;
+- message-content fallback;
+- ignoring search-call and reasoning items;
+- empty responses.

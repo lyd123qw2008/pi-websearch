@@ -7,6 +7,7 @@
 - Reuse source numbers for repeated citations and preserve source-only fallback.
 - Add tests for same-position citations, repeated sources, CJK text, and missing indexes.
 - Add routing guidance to prevent direct API-key or shell-based web-search fallbacks.
+- Preserve visible square brackets around inline citation numbers in Pi's Markdown renderer.
 
 ## 0.1.0
 

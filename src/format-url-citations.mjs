@@ -45,6 +45,10 @@ function getTitle(annotation) {
   return title || getDomain(annotation.url) || annotation.url;
 }
 
+function getInlineCitationLabel(source) {
+  return String(source.index);
+}
+
 function getIndex(annotation, field) {
   const value = annotation?.[field];
   return Number.isInteger(value) && value >= 0 ? value : undefined;
@@ -118,22 +122,26 @@ function escapeRegExp(value) {
 function stripDuplicateInlineLinks(text, insertions) {
   const sources = new Map();
   for (const insertion of insertions) {
-    sources.set(insertion.sourceIndex, insertion.url);
+    sources.set(insertion.sourceIndex, {
+      url: insertion.url,
+      label: insertion.label,
+    });
   }
 
   let result = text;
-  for (const [sourceIndex, url] of sources) {
-    const escapedUrl = escapeRegExp(url);
+  for (const [sourceIndex, source] of sources) {
+    const escapedUrl = escapeRegExp(source.url);
     const link = `\\[[^\\r\\n]*?\\]\\((?:<)?${escapedUrl}(?:>)?\\)`;
-    const marker = `\\[${sourceIndex}\\]\\(<${escapedUrl}>\\)`;
+    const markerText = `[\\[${source.label}\\]](<${safeMarkdownUrl(source.url)}>)`;
+    const marker = escapeRegExp(markerText);
     // Some gateways/models include a Markdown citation link in the generated
     // text as well as a structured annotation. Replace that adjacent duplicate
-    // with the compact numbered marker instead of showing the URL twice.
+    // with the compact bracketed marker instead of showing the URL twice.
     const duplicate = new RegExp(
       `(?:\\s*\\(\\s*)?${link}(?:\\s*\\))?\\s*${marker}`,
       "g",
     );
-    result = result.replace(duplicate, `[${sourceIndex}](<${safeMarkdownUrl(url)}>)`);
+    result = result.replace(duplicate, markerText);
   }
   return result;
 }
@@ -149,11 +157,13 @@ function insertInlineCitations(text, citations) {
     const key = `${endIndex}:${source.index}`;
     if (seenAtPosition.has(key)) continue;
     seenAtPosition.add(key);
+    const label = getInlineCitationLabel(source);
     insertions.push({
       endIndex,
       sourceIndex: source.index,
       url: source.url,
-      marker: `[${source.index}](<${safeMarkdownUrl(source.url)}>)`,
+      label,
+      marker: `[\\[${label}\\]](<${safeMarkdownUrl(source.url)}>)`,
     });
   }
 

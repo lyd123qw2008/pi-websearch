@@ -41,7 +41,7 @@ test("renders inline clickable markers and a deduplicated source index", () => {
 
   assert.ok(
     result.includes(
-      "Source one supports this answer[1](<https://example.com/one>); source two adds context[2](<https://example.com/two?a=1&b=2>).",
+      "Source one supports this answer[\\[1\\]](<https://example.com/one>); source two adds context[\\[2\\]](<https://example.com/two?a=1&b=2>).",
     ),
   );
   assert.ok(
@@ -77,7 +77,7 @@ test("normalizes a duplicate Markdown citation link emitted by the gateway", () 
     ],
   });
 
-  assert.ok(result.includes("事实。[1](<https://example.com/source>)"));
+  assert.ok(result.includes("事实。[\\[1\\]](<https://example.com/source>)"));
   assert.equal((result.match(/https:\/\/example\.com\/source/g) ?? []).length, 2);
 });
 
@@ -107,8 +107,8 @@ test("uses the same source number for repeated citations", () => {
     ],
   });
 
-  assert.ok(result.includes("First claim.[1](<https://example.com/source>)"));
-  assert.ok(result.includes("Second claim.[1](<https://example.com/source>)"));
+  assert.ok(result.includes("First claim.[\\[1\\]](<https://example.com/source>)"));
+  assert.ok(result.includes("Second claim.[\\[1\\]](<https://example.com/source>)"));
   assert.equal((result.match(/\[1\] \[/g) ?? []).length, 1);
 });
 
@@ -168,7 +168,7 @@ test("orders citations at the same position as [1][2]", () => {
 
   assert.ok(
     result.includes(
-      "Claim.[1](<https://example.com/first>)[2](<https://example.com/second>)",
+      "Claim.[\\[1\\]](<https://example.com/first>)[\\[2\\]](<https://example.com/second>)",
     ),
   );
 });
@@ -192,7 +192,7 @@ test("handles CJK text indexes without changing the source text", () => {
     ],
   });
 
-  assert.ok(result.includes("原生搜索[1](<https://example.com/search>)已经启用。"));
+  assert.ok(result.includes("原生搜索[\\[1\\]](<https://example.com/search>)已经启用。"));
 });
 
 test("formatUrlCitations returns only the source suffix", () => {

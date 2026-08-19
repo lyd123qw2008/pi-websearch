@@ -6,6 +6,7 @@
 - Add a deduplicated `Sources:` index with title and domain labels.
 - Reuse source numbers for repeated citations and preserve source-only fallback.
 - Add tests for same-position citations, repeated sources, CJK text, and missing indexes.
+- Add routing guidance to prevent direct API-key or shell-based web-search fallbacks.
 
 ## 0.1.0
 

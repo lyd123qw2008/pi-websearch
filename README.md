@@ -25,6 +25,7 @@ It does **not** run a second search engine. It does **not** use DuckDuckGo, `pi-
   - reads persistent state from `~/.pi/web-search.json` at startup
   - `/web-search on|off` updates `nativeWebSearch.enabled` for future sessions
   - only injects the hosted tool for `codex-local` + `openai-responses`
+  - adds a routing instruction so the model uses `web_search` directly instead of calling external APIs through bash/Python
   - preserves Pi's existing tools
 - `patches/pi-ai-openai-responses-citations.patch`
   - reads `url_citation` annotations from Responses output items
@@ -133,6 +134,7 @@ answer intact and emits the source index without inline markers.
 ## Important limitations
 
 - `store: false` and local Pi session handling are separate from citation rendering.
+- The model may still refuse a prompt that explicitly asks it to call the OpenAI API itself; ask for the information normally (for example, `查询微软新闻`) and let the extension route it to `web_search`.
 - If the proxy strips `url_citation` annotations, the Markdown source section cannot be reconstructed from the final text alone.
 - The patch modifies an installed generated file and may be overwritten by package updates.
 - Do not commit API keys, private proxy URLs, Pi sessions, model credentials, or backup files.

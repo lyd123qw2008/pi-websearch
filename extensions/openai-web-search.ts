@@ -18,6 +18,13 @@ const WEB_SEARCH_TOOL = {
 	search_context_size: "medium",
 };
 
+const NATIVE_WEB_SEARCH_GUIDANCE = [
+	"Web search routing for this session:",
+	"- When the user asks for current or web-researched information, use the available `web_search` capability directly.",
+	"- Do not use bash, Python, curl, urllib, browser tools, or API keys to search the web.",
+	"- If web search is unavailable or fails, report that directly instead of substituting another search path.",
+].join("\n");
+
 let enabled = DEFAULT_ENABLED;
 
 type JsonObject = Record<string, unknown>;
@@ -122,6 +129,17 @@ export default function openaiWebSearchExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		enabled = readPersistentEnabled();
 		updateStatus(ctx);
+	});
+
+	// Make the routing boundary explicit to the model. Without this, prompts
+	// containing phrases such as "OpenAI Responses API" can make the model
+	// misuse bash/Python to call api.openai.com instead of using the hosted
+	// `web_search` tool that this extension injects below.
+	pi.on("before_agent_start", (event, ctx) => {
+		if (!enabled || !isTargetModel(ctx)) return;
+		return {
+			systemPrompt: `${event.systemPrompt}\n\n${NATIVE_WEB_SEARCH_GUIDANCE}`,
+		};
 	});
 
 	// Pi builds its normal Responses API payload first. Append the hosted search

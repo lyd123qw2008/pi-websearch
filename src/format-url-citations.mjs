@@ -132,7 +132,7 @@ function stripDuplicateInlineLinks(text, insertions) {
   for (const [sourceIndex, source] of sources) {
     const escapedUrl = escapeRegExp(source.url);
     const link = `\\[[^\\r\\n]*?\\]\\((?:<)?${escapedUrl}(?:>)?\\)`;
-    const markerText = `[\\[${source.label}\\]](<${safeMarkdownUrl(source.url)}>)`;
+    const markerText = `[[${source.label}]](<${safeMarkdownUrl(source.url)}>)`;
     const marker = escapeRegExp(markerText);
     // Some gateways/models include a Markdown citation link in the generated
     // text as well as a structured annotation. Replace that adjacent duplicate
@@ -163,7 +163,7 @@ function insertInlineCitations(text, citations) {
       sourceIndex: source.index,
       url: source.url,
       label,
-      marker: `[\\[${label}\\]](<${safeMarkdownUrl(source.url)}>)`,
+      marker: `[[${label}]](<${safeMarkdownUrl(source.url)}>)`,
     });
   }
 

@@ -128,10 +128,9 @@ Sources:
 [1] [Source title · example.com](<https://example.com>)
 ```
 
-The internal Markdown passed to Pi's TUI intentionally escapes the citation
-label as `\\[1\\]`, so the TUI renders the complete clickable label as `[1]`.
-In `-p --mode text`, you may see that raw Markdown form; it is not the visual
-terminal output.
+The internal Markdown passed to Pi's TUI uses `[[1]](<URL>)`: the outer
+Markdown link syntax makes the link text itself `[1]`. In `-p --mode text`,
+you may see that raw Markdown form; it is not the visual terminal output.
 
 If the provider does not return annotation positions, the patch keeps the
 answer intact and emits the source index without inline markers.

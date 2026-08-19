@@ -8,6 +8,7 @@
 - Add tests for same-position citations, repeated sources, CJK text, and missing indexes.
 - Add routing guidance to prevent direct API-key or shell-based web-search fallbacks.
 - Preserve visible square brackets around inline citation numbers in Pi's Markdown renderer.
+- Document the difference between raw `-p --mode text` Markdown and rendered TUI output.
 
 ## 0.1.0
 

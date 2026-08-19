@@ -1,6 +1,6 @@
 --- a/openai-responses-shared.js
 +++ b/openai-responses-shared.js
-@@ -59,5 +59,162 @@
+@@ -59,5 +59,136 @@
 -/**
 - * Convert OpenAI Responses URL annotations into ordinary Markdown links.
 - * Pi's TUI already renders Markdown links as terminal hyperlinks, so this
@@ -41,9 +41,6 @@
 +function getTitle(annotation) {
 +    const title = String(annotation.title || "").trim();
 +    return title || getDomain(annotation.url) || annotation.url;
-+}
-+function getInlineCitationLabel(source) {
-+    return String(source.index);
 +}
 +function getIndex(annotation, field) {
 +    const value = annotation?.[field];
@@ -100,75 +97,52 @@
 +    }
 +    return { parts, sources };
 +}
-+function escapeRegExp(value) {
-+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
++function formatInlineSource(source) {
++    const domain = getDomain(source.url);
++    const title = escapeMarkdownLabel(source.title || domain || source.url);
++    return `来源：${title} (<${safeMarkdownUrl(source.url)}>)`;
 +}
-+function stripDuplicateInlineLinks(text, insertions) {
-+    const sources = new Map();
-+    for (const insertion of insertions) {
-+        sources.set(insertion.sourceIndex, {
-+            url: insertion.url,
-+            label: insertion.label,
-+        });
-+    }
-+    let result = text;
-+    for (const [sourceIndex, source] of sources) {
-+        const escapedUrl = escapeRegExp(source.url);
-+        const link = `\\[[^\\r\\n]*?\\]\\((?:<)?${escapedUrl}(?:>)?\\)`;
-+        const markerText = `[[${source.label}]](<${safeMarkdownUrl(source.url)}>)`;
-+        const marker = escapeRegExp(markerText);
-+        // Some gateways/models include a Markdown citation link in the
-+        // generated text as well as a structured annotation. Replace that
-+        // adjacent duplicate with the compact bracketed marker.
-+        const duplicate = new RegExp(`(?:\\s*\\(\\s*)?${link}(?:\\s*\\))?\\s*${marker}`, "g");
-+        result = result.replace(duplicate, markerText);
-+    }
-+    return result;
-+}
-+function insertInlineCitations(text, citations) {
++function insertInlineSources(text, citations, representedUrls) {
 +    const insertions = [];
 +    const seenAtPosition = new Set();
 +    for (const { annotation, source } of citations) {
 +        const endIndex = getIndex(annotation, "end_index");
 +        if (endIndex === undefined || endIndex > text.length)
 +            continue;
-+        const key = `${endIndex}:${source.index}`;
++        // If the model already printed the URL, keep that source and do not
++        // add a second copy.
++        if (text.includes(source.url)) {
++            representedUrls.add(source.url);
++            continue;
++        }
++        if (representedUrls.has(source.url))
++            continue;
++        const key = `${endIndex}:${source.url}`;
 +        if (seenAtPosition.has(key))
 +            continue;
 +        seenAtPosition.add(key);
-+        const label = getInlineCitationLabel(source);
++        representedUrls.add(source.url);
 +        insertions.push({
 +            endIndex,
 +            sourceIndex: source.index,
-+            url: source.url,
-+            label,
-+            marker: `[[${label}]](<${safeMarkdownUrl(source.url)}>)`,
++            marker: `\n${formatInlineSource(source)}`,
 +        });
 +    }
 +    // Insert from right to left so provider indexes remain stable. For
-+    // citations ending at the same character, process higher numbers first
-+    // so the final visible order is [1][2], matching the source index.
++    // sources ending at the same character, preserve annotation order.
 +    insertions.sort((left, right) => right.endIndex - left.endIndex || right.sourceIndex - left.sourceIndex);
 +    let result = text;
 +    for (const insertion of insertions) {
 +        result = result.slice(0, insertion.endIndex) + insertion.marker + result.slice(insertion.endIndex);
 +    }
-+    return stripDuplicateInlineLinks(result, insertions);
++    return result;
 +}
-+function formatSources(sources) {
++function formatSourceFallback(sources) {
 +    if (sources.length === 0)
 +        return "";
-+    const lines = sources.map((source) => {
-+        const domain = getDomain(source.url);
-+        const title = escapeMarkdownLabel(source.title || domain || source.url);
-+        const label = domain && title !== domain
-+            ? `${title} · ${escapeMarkdownLabel(domain)}`
-+            : title;
-+        return `[${source.index}] [${label}](<${safeMarkdownUrl(source.url)}>)`;
-+    });
-+    return `\n\nSources:\n${lines.join("\n")}`;
++    return `\n\n${sources.map(formatInlineSource).join("\n")}`;
 +}
-@@ -65,19 +222,12 @@
+@@ -65,19 +196,15 @@
 -    const seen = new Set();
 -    const lines = [];
 -    for (const part of item.content ?? []) {
@@ -189,23 +163,26 @@
 -    }
 -    return lines.length > 0 ? `\n\n### Sources\n${lines.join("\n")}` : "";
 +    const { sources } = buildCitationModel(item);
-+    return formatSources(sources);
++    return formatSourceFallback(sources);
 +}
 +function cleanRawCitationTokens(text) {
 +    return String(text ?? "").replace(/cite[^]*/g, "").trimEnd();
 +}
 +function renderResponseText(item) {
 +    const { parts, sources } = buildCitationModel(item);
++    const representedUrls = new Set();
 +    const text = parts
-+        .map(({ text: partText, citations }) => insertInlineCitations(partText, citations))
++        .map(({ text: partText, citations }) => insertInlineSources(partText, citations, representedUrls))
 +        .join("");
-+    return cleanRawCitationTokens(text) + formatSources(sources);
-@@ -620,5 +770,3 @@
++    const cleanedText = cleanRawCitationTokens(text);
++    const fallbackSources = sources.filter((source) => !representedUrls.has(source.url) && !cleanedText.includes(source.url));
++    return cleanedText + formatSourceFallback(fallbackSources);
+@@ -620,5 +747,3 @@
 -                slot.block.text = item.content?.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("") || "";
 -                // Remove any raw platform citation tokens if a gateway included them
 -                // as text, then append native Responses URL annotations as Markdown.
 -                slot.block.text = slot.block.text.replace(/cite[^]*/g, "").trimEnd();
 -                slot.block.text += formatUrlCitations(item);
-+                // Render native Responses URL annotations as compact inline
-+                // markers plus a deduplicated, clickable Sources index.
++                // Render native Responses URL annotations as inline source
++                // labels and visible URLs beside the supported claim.
 +                slot.block.text = renderResponseText(item);

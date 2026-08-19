@@ -6,7 +6,7 @@ import {
   renderResponseText,
 } from "../src/format-url-citations.mjs";
 
-test("renders inline clickable markers and a deduplicated source index", () => {
+test("renders source title and URL next to the supported claim", () => {
   const result = renderResponseText({
     content: [
       {
@@ -27,13 +27,6 @@ test("renders inline clickable markers and a deduplicated source index", () => {
             start_index: 33,
             end_index: 56,
           },
-          {
-            type: "url_citation",
-            title: "Duplicate",
-            url: "https://example.com/one",
-            start_index: 0,
-            end_index: 31,
-          },
         ],
       },
     ],
@@ -41,23 +34,19 @@ test("renders inline clickable markers and a deduplicated source index", () => {
 
   assert.ok(
     result.includes(
-      "Source one supports this answer[[1]](<https://example.com/one>); source two adds context[[2]](<https://example.com/two?a=1&b=2>).",
+      "Source one supports this answer\n来源：Source \\\[one\\\] (<https://example.com/one>)",
     ),
   );
   assert.ok(
     result.includes(
-      "[1] [Source \\\[one\\\] · example.com](<https://example.com/one>)",
+      "source two adds context\n来源：Source two (<https://example.com/two?a=1&b=2>).",
     ),
   );
-  assert.ok(
-    result.includes(
-      "[2] [Source two · example.com](<https://example.com/two?a=1&b=2>)",
-    ),
-  );
-  assert.equal((result.match(/https:\/\/example\.com\/one/g) ?? []).length, 2);
+  assert.ok(!result.includes("Sources:"));
+  assert.ok(!result.includes("[[1]]"));
 });
 
-test("normalizes a duplicate Markdown citation link emitted by the gateway", () => {
+test("does not duplicate a URL already emitted by the model", () => {
   const text = "事实。 ([example.com](https://example.com/source))";
   const result = renderResponseText({
     content: [
@@ -77,11 +66,32 @@ test("normalizes a duplicate Markdown citation link emitted by the gateway", () 
     ],
   });
 
-  assert.ok(result.includes("事实。[[1]](<https://example.com/source>)"));
-  assert.equal((result.match(/https:\/\/example\.com\/source/g) ?? []).length, 2);
+  assert.equal(result, text);
+  assert.equal((result.match(/https:\/\/example\.com\/source/g) ?? []).length, 1);
 });
 
-test("uses the same source number for repeated citations", () => {
+test("does not duplicate a model URL when span positions are missing", () => {
+  const text = "事实。 (https://example.com/source)";
+  const result = renderResponseText({
+    content: [
+      {
+        type: "output_text",
+        text,
+        annotations: [
+          {
+            type: "url_citation",
+            title: "Source",
+            url: "https://example.com/source",
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(result, text);
+});
+
+test("shows a repeated source only once", () => {
   const result = renderResponseText({
     content: [
       {
@@ -107,12 +117,16 @@ test("uses the same source number for repeated citations", () => {
     ],
   });
 
-  assert.ok(result.includes("First claim.[[1]](<https://example.com/source>)"));
-  assert.ok(result.includes("Second claim.[[1]](<https://example.com/source>)"));
-  assert.equal((result.match(/\[1\] \[/g) ?? []).length, 1);
+  assert.equal(
+    (result.match(/来源：One source \(<https:\/\/example\.com\/source>\)/g) ?? [])
+      .length,
+    1,
+  );
+  assert.ok(result.includes("First claim.\n来源：One source"));
+  assert.ok(result.includes("Second claim."));
 });
 
-test("keeps source-only fallback when annotations have no span indexes", () => {
+test("keeps a source-only fallback when annotations have no span indexes", () => {
   const result = renderResponseText({
     content: [
       {
@@ -130,17 +144,12 @@ test("keeps source-only fallback when annotations have no span indexes", () => {
   });
 
   assert.equal(
-    result.split("Sources:")[0].trimEnd(),
-    "Answer without usable span indexes.",
-  );
-  assert.ok(
-    result.includes(
-      "[1] [Fallback source · example.com](<https://example.com/fallback>)",
-    ),
+    result,
+    "Answer without usable span indexes.\n\n来源：Fallback source (<https://example.com/fallback>)",
   );
 });
 
-test("orders citations at the same position as [1][2]", () => {
+test("orders multiple sources at the same position", () => {
   const result = renderResponseText({
     content: [
       {
@@ -168,7 +177,7 @@ test("orders citations at the same position as [1][2]", () => {
 
   assert.ok(
     result.includes(
-      "Claim.[[1]](<https://example.com/first>)[[2]](<https://example.com/second>)",
+      "Claim.\n来源：First (<https://example.com/first>)\n来源：Second (<https://example.com/second>)",
     ),
   );
 });
@@ -192,10 +201,10 @@ test("handles CJK text indexes without changing the source text", () => {
     ],
   });
 
-  assert.ok(result.includes("原生搜索[[1]](<https://example.com/search>)已经启用。"));
+  assert.ok(result.includes("原生搜索\n来源：Native search (<https://example.com/search>)已经启用。"));
 });
 
-test("formatUrlCitations returns only the source suffix", () => {
+test("formatUrlCitations returns source fallback text", () => {
   assert.equal(
     formatUrlCitations({
       content: [
@@ -212,11 +221,11 @@ test("formatUrlCitations returns only the source suffix", () => {
         },
       ],
     }),
-    "\n\nSources:\n[1] [Source · example.com](<https://example.com/source>)",
+    "\n\n来源：Source (<https://example.com/source>)",
   );
 });
 
-test("returns plain text without a source section when there are no citations", () => {
+test("returns plain text without a source suffix when there are no citations", () => {
   assert.equal(
     renderResponseText({
       content: [{ type: "output_text", text: "answer", annotations: [] }],

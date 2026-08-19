@@ -2,8 +2,8 @@
  * Render OpenAI Responses URL annotations in a terminal-friendly format.
  *
  * The Responses API gives URL citation spans (`start_index`/`end_index`).
- * We preserve those spans by placing a compact, clickable `[n]` marker in
- * the answer and append a deduplicated source index at the end.
+ * We preserve those spans by placing a compact, inline source label and URL
+ * next to the supported claim.
  */
 
 function isUrlCitation(annotation) {
@@ -43,10 +43,6 @@ function getDomain(url) {
 function getTitle(annotation) {
   const title = String(annotation.title || "").trim();
   return title || getDomain(annotation.url) || annotation.url;
-}
-
-function getInlineCitationLabel(source) {
-  return String(source.index);
 }
 
 function getIndex(annotation, field) {
@@ -115,38 +111,13 @@ function buildCitationModel(item) {
   return { parts, sources };
 }
 
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function formatInlineSource(source) {
+  const domain = getDomain(source.url);
+  const title = escapeMarkdownLabel(source.title || domain || source.url);
+  return `来源：${title} (<${safeMarkdownUrl(source.url)}>)`;
 }
 
-function stripDuplicateInlineLinks(text, insertions) {
-  const sources = new Map();
-  for (const insertion of insertions) {
-    sources.set(insertion.sourceIndex, {
-      url: insertion.url,
-      label: insertion.label,
-    });
-  }
-
-  let result = text;
-  for (const [sourceIndex, source] of sources) {
-    const escapedUrl = escapeRegExp(source.url);
-    const link = `\\[[^\\r\\n]*?\\]\\((?:<)?${escapedUrl}(?:>)?\\)`;
-    const markerText = `[[${source.label}]](<${safeMarkdownUrl(source.url)}>)`;
-    const marker = escapeRegExp(markerText);
-    // Some gateways/models include a Markdown citation link in the generated
-    // text as well as a structured annotation. Replace that adjacent duplicate
-    // with the compact bracketed marker instead of showing the URL twice.
-    const duplicate = new RegExp(
-      `(?:\\s*\\(\\s*)?${link}(?:\\s*\\))?\\s*${marker}`,
-      "g",
-    );
-    result = result.replace(duplicate, markerText);
-  }
-  return result;
-}
-
-function insertInlineCitations(text, citations) {
+function insertInlineSources(text, citations, representedUrls) {
   const insertions = [];
   const seenAtPosition = new Set();
 
@@ -154,22 +125,28 @@ function insertInlineCitations(text, citations) {
     const endIndex = getIndex(annotation, "end_index");
     if (endIndex === undefined || endIndex > text.length) continue;
 
-    const key = `${endIndex}:${source.index}`;
+    // If the model already printed the URL, keep that source and do not add a
+    // second copy. This makes the formatter safe for agents that emit inline
+    // source text themselves.
+    if (text.includes(source.url)) {
+      representedUrls.add(source.url);
+      continue;
+    }
+    if (representedUrls.has(source.url)) continue;
+
+    const key = `${endIndex}:${source.url}`;
     if (seenAtPosition.has(key)) continue;
     seenAtPosition.add(key);
-    const label = getInlineCitationLabel(source);
+    representedUrls.add(source.url);
     insertions.push({
       endIndex,
       sourceIndex: source.index,
-      url: source.url,
-      label,
-      marker: `[[${label}]](<${safeMarkdownUrl(source.url)}>)`,
+      marker: `\n${formatInlineSource(source)}`,
     });
   }
 
-  // Insert from right to left so the provider's indexes remain stable. For
-  // citations ending at the same character, process higher numbers first so
-  // the final visible order is [1][2], matching the source index.
+  // Insert from right to left so provider indexes remain stable. For sources
+  // ending at the same character, preserve annotation order.
   insertions.sort(
     (left, right) =>
       right.endIndex - left.endIndex || right.sourceIndex - left.sourceIndex,
@@ -182,22 +159,12 @@ function insertInlineCitations(text, citations) {
       insertion.marker +
       result.slice(insertion.endIndex);
   }
-  return stripDuplicateInlineLinks(result, insertions);
+  return result;
 }
 
-function formatSources(sources) {
+function formatSourceFallback(sources) {
   if (sources.length === 0) return "";
-
-  const lines = sources.map((source) => {
-    const domain = getDomain(source.url);
-    const title = escapeMarkdownLabel(source.title || domain || source.url);
-    const label = domain && title !== domain
-      ? `${title} · ${escapeMarkdownLabel(domain)}`
-      : title;
-    return `[${source.index}] [${label}](<${safeMarkdownUrl(source.url)}>)`;
-  });
-
-  return `\n\nSources:\n${lines.join("\n")}`;
+  return `\n\n${sources.map(formatInlineSource).join("\n")}`;
 }
 
 /**
@@ -206,21 +173,28 @@ function formatSources(sources) {
  */
 export function formatUrlCitations(item) {
   const { sources } = buildCitationModel(item);
-  return formatSources(sources);
+  return formatSourceFallback(sources);
 }
 
 /**
- * Render output text with inline clickable citation markers and a source index.
+ * Render output text with inline source labels and URLs next to supported
+ * claims. Sources without usable span positions are appended as a fallback.
  */
 export function renderResponseText(item) {
   const { parts, sources } = buildCitationModel(item);
+  const representedUrls = new Set();
   const text = parts
     .map(({ text: partText, citations }) =>
-      insertInlineCitations(partText, citations),
+      insertInlineSources(partText, citations, representedUrls),
     )
     .join("");
+  const cleanedText = cleanRawCitationTokens(text);
+  const fallbackSources = sources.filter(
+    (source) =>
+      !representedUrls.has(source.url) && !cleanedText.includes(source.url),
+  );
 
-  return cleanRawCitationTokens(text) + formatSources(sources);
+  return cleanedText + formatSourceFallback(fallbackSources);
 }
 
 export function cleanRawCitationTokens(text) {

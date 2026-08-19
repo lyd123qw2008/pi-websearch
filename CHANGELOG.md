@@ -2,13 +2,12 @@
 
 ## Unreleased
 
-- Render Responses URL annotations as inline clickable `[n]` markers.
-- Add a deduplicated `Sources:` index with title and domain labels.
-- Reuse source numbers for repeated citations and preserve source-only fallback.
-- Add tests for same-position citations, repeated sources, CJK text, and missing indexes.
+- Render Responses URL annotations as inline source title and URL lines beside supported claims.
+- Avoid duplicate URLs when the model already emitted a source link.
+- Preserve source-only fallback and add tests for source placement, repeated sources, CJK text, and missing indexes.
 - Add routing guidance to prevent direct API-key or shell-based web-search fallbacks.
-- Preserve visible square brackets around inline citation numbers in Pi's Markdown renderer.
-- Use the simpler `[[1]](<URL>)` Markdown label to avoid exposing backslash escapes in raw output.
+- Preserve visible source URLs and OSC-8 hyperlink behavior in Pi's Markdown renderer.
+- Align source display with Codex CLI's visible-URL approach instead of adding a custom citation index.
 - Document the difference between raw `-p --mode text` Markdown and rendered TUI output.
 
 ## 0.1.0

@@ -1,6 +1,6 @@
 # pi-websearch
 
-Use the provider's native OpenAI Responses `web_search` tool in Pi, while rendering returned URL citations as ordinary Markdown links.
+Use the provider's native OpenAI Responses `web_search` tool in Pi, while rendering returned URL citations in a terminal-friendly inline-reference format.
 
 This project intentionally separates the two concerns:
 
@@ -9,7 +9,7 @@ OpenAI Responses web_search
         ↓
 URL annotations from the provider
         ↓
-Markdown `### Sources` section
+Inline clickable [1] markers + a deduplicated Sources index
         ↓
 Pi's existing Markdown/TUI hyperlink renderer
 ```
@@ -28,11 +28,12 @@ It does **not** run a second search engine. It does **not** use DuckDuckGo, `pi-
   - preserves Pi's existing tools
 - `patches/pi-ai-openai-responses-citations.patch`
   - reads `url_citation` annotations from Responses output items
-  - deduplicates source URLs
-  - appends a Markdown `### Sources` list
+  - places compact clickable `[1]` markers at annotation end positions
+  - deduplicates source URLs and appends a compact `Sources:` index
+  - falls back to a source-only index when span positions are unavailable
   - removes raw `cite...` tokens if a gateway emits them as text
 - `src/format-url-citations.mjs`
-  - small, independently testable copy of the formatting logic
+  - small, independently testable copy of the rendering logic
 
 ## Requirements
 
@@ -117,13 +118,17 @@ Test with:
 
 After `/web-search on` or `/web-search off`, the selected state is restored by the next new session or `/reload`.
 
-Expected output:
+Expected terminal output:
 
-```markdown
-### Sources
+```text
+The answer is supported by the official documentation.[1]
 
-- [Source title](<https://example.com>)
+Sources:
+[1] [Source title · example.com](<https://example.com>)
 ```
+
+If the provider does not return annotation positions, the patch keeps the
+answer intact and emits the source index without inline markers.
 
 ## Important limitations
 
@@ -138,4 +143,6 @@ Expected output:
 npm test
 ```
 
-The test suite validates URL citation formatting, deduplication, Markdown escaping, and raw marker cleanup.
+The test suite validates inline marker placement, repeated-source numbering,
+source-only fallback, same-position ordering, CJK text, Markdown escaping, and
+raw marker cleanup.

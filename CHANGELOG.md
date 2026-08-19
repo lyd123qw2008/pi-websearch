@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Render Responses URL annotations as inline clickable `[n]` markers.
+- Add a deduplicated `Sources:` index with title and domain labels.
+- Reuse source numbers for repeated citations and preserve source-only fallback.
+- Add tests for same-position citations, repeated sources, CJK text, and missing indexes.
+
 ## 0.1.0
 
 - Add session-local `/web-search on|off|status` extension.

@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-- Render Responses URL annotations as compact clickable domain links beside supported claims.
-- Keep full URLs as OSC-8 hyperlink destinations without displaying them in the normal TUI.
+- Render Responses URL annotations as complete visible URLs beside supported claims.
+- Keep full URLs as OSC-8 hyperlink destinations while preserving visibility in non-clickable terminals.
 - Avoid duplicate URLs when the model already emitted a source link.
-- Preserve standalone fallback links and add tests for source placement, repeated sources, CJK text, and missing indexes.
+- Preserve standalone fallback URLs and add tests for source placement, repeated sources, CJK text, and missing indexes.
 - Add routing guidance to prevent direct API-key or shell-based web-search fallbacks.
-- Preserve visible domain labels and OSC-8 hyperlink behavior in Pi's Markdown renderer.
-- Align source display with Codex CLI's compact parenthesized domain-link approach instead of adding a custom citation index.
+- Preserve visible complete URLs and OSC-8 hyperlink behavior in Pi's Markdown renderer.
+- Prefer a parenthesized complete URL over a domain-only label so non-clickable terminals still expose the destination.
 - Document the difference between raw `-p --mode text` Markdown and rendered TUI output.
 
 ## 0.1.0

@@ -6,7 +6,7 @@ import {
   renderResponseText,
 } from "../src/format-url-citations.mjs";
 
-test("renders a clickable domain link next to the supported claim", () => {
+test("renders a complete clickable URL next to the supported claim", () => {
   const result = renderResponseText({
     content: [
       {
@@ -34,12 +34,12 @@ test("renders a clickable domain link next to the supported claim", () => {
 
   assert.ok(
     result.includes(
-      "Source one supports this answer ([example.com](<https://example.com/one>));",
+      "Source one supports this answer ([https://example.com/one](<https://example.com/one>));",
     ),
   );
   assert.ok(
     result.includes(
-      "source two adds context ([example.com](<https://example.com/two?a=1&b=2>)).",
+      "source two adds context ([https://example.com/two?a=1&b=2](<https://example.com/two?a=1&b=2>)).",
     ),
   );
   assert.ok(!result.includes("Sources:"));
@@ -119,11 +119,15 @@ test("shows a repeated source only once", () => {
   });
 
   assert.equal(
-    (result.match(/\(\[example\.com\]\(<https:\/\/example\.com\/source>\)\)/g) ?? [])
+    (result.match(/\(\[https:\/\/example\.com\/source\]\(<https:\/\/example\.com\/source>\)\)/g) ?? [])
       .length,
     1,
   );
-  assert.ok(result.includes("First claim. ([example.com](<https://example.com/source>))"));
+  assert.ok(
+    result.includes(
+      "First claim. ([https://example.com/source](<https://example.com/source>))",
+    ),
+  );
   assert.ok(result.includes("Second claim."));
 });
 
@@ -146,7 +150,7 @@ test("keeps a source-only fallback when annotations have no span indexes", () =>
 
   assert.equal(
     result,
-    "Answer without usable span indexes.\n\n([example.com](<https://example.com/fallback>))",
+    "Answer without usable span indexes.\n\n([https://example.com/fallback](<https://example.com/fallback>))",
   );
 });
 
@@ -178,7 +182,7 @@ test("orders multiple sources at the same position", () => {
 
   assert.ok(
     result.includes(
-      "Claim. ([example.com](<https://example.com/first>))\n([example.com](<https://example.com/second>))",
+      "Claim. ([https://example.com/first](<https://example.com/first>))\n([https://example.com/second](<https://example.com/second>))",
     ),
   );
 });
@@ -204,7 +208,7 @@ test("handles CJK text indexes without changing the source text", () => {
 
   assert.ok(
     result.includes(
-      "原生搜索 ([example.com](<https://example.com/search>))已经启用。",
+      "原生搜索 ([https://example.com/search](<https://example.com/search>))已经启用。",
     ),
   );
 });
@@ -226,7 +230,7 @@ test("formatUrlCitations returns source fallback text", () => {
         },
       ],
     }),
-    "\n\n([example.com](<https://example.com/source>))",
+    "\n\n([https://example.com/source](<https://example.com/source>))",
   );
 });
 

@@ -1,7 +1,7 @@
 # pi-websearch
 
 Use the provider's native OpenAI Responses `web_search` tool in Pi, while
-rendering returned URL citations as compact clickable domain links next to the claims they support.
+rendering returned URL citations as complete visible URLs next to the claims they support.
 
 This follows Codex CLI's simple terminal behavior:
 
@@ -10,9 +10,9 @@ OpenAI Responses web_search
         ↓
 URL annotations from the provider
         ↓
-Inline clickable domain link
+Inline complete URL
         ↓
-Pi's existing Markdown/TUI OSC-8 hyperlink renderer
+Pi's existing Markdown/TUI hyperlink renderer
 ```
 
 It does **not** run a second search engine. It does **not** use DuckDuckGo, `pi-web-access` search, or a custom function tool for the search itself.
@@ -30,10 +30,10 @@ It does **not** run a second search engine. It does **not** use DuckDuckGo, `pi-
   - preserves Pi's existing tools
 - `patches/pi-ai-openai-responses-citations.patch`
   - reads `url_citation` annotations from Responses output items
-  - places `([domain](<URL>))` next to the supported claim
-  - lets the TUI show only the domain while keeping the full URL as the link target
+  - places `([https://...](<https://...>))` next to the supported claim
+  - shows the complete URL even when OSC-8 hyperlinks are unavailable
   - avoids duplicating URLs already emitted by the model
-  - falls back to standalone domain links when span positions are unavailable
+  - falls back to standalone complete URLs when span positions are unavailable
   - removes raw `cite...` tokens if a gateway emits them as text
 - `src/format-url-citations.mjs`
   - small, independently testable copy of the rendering logic
@@ -124,21 +124,21 @@ After `/web-search on` or `/web-search off`, the selected state is restored by t
 Expected terminal output:
 
 ```text
-The answer is supported by the official documentation. (example.com)
+The answer is supported by the official documentation. (https://example.com)
 ```
 
-`example.com` is the visible OSC-8 link text; the full URL remains its
-clickable destination. In raw `-p --mode text` Markdown, the same output is
-represented as `([example.com](<https://example.com>))`. If the provider does
-not return annotation positions, the patch keeps the answer intact and
-appends standalone domain links as a fallback. URLs already present in the
-model's answer are not duplicated.
+The complete URL is visible text and is also the OSC-8 hyperlink destination
+when the terminal supports clickable links. In raw `-p --mode text` Markdown,
+the same output is represented as `([https://example.com](<https://example.com>))`.
+If the provider does not return annotation positions, the patch keeps the
+answer intact and appends standalone complete URLs as a fallback. URLs already
+present in the model's answer are not duplicated.
 
 ## Important limitations
 
 - `store: false` and local Pi session handling are separate from citation rendering.
 - The model may still refuse a prompt that explicitly asks it to call the OpenAI API itself; ask for the information normally (for example, `查询微软新闻`) and let the extension route it to `web_search`.
-- If the proxy strips `url_citation` annotations, the formatter cannot place a domain link beside the supported claim; URLs already emitted by the model remain untouched.
+- If the proxy strips `url_citation` annotations, the formatter cannot place a complete URL beside the supported claim; URLs already emitted by the model remain untouched.
 - The patch modifies an installed generated file and may be overwritten by package updates.
 - Do not commit API keys, private proxy URLs, Pi sessions, model credentials, or backup files.
 

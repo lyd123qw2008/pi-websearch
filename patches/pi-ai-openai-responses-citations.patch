@@ -98,7 +98,7 @@
 +    return { parts, sources };
 +}
 +function formatInlineSource(source) {
-+    const label = escapeMarkdownLabel(getDomain(source.url) || source.title || source.url);
++    const label = escapeMarkdownLabel(source.url);
 +    return `([${label}](<${safeMarkdownUrl(source.url)}>))`;
 +}
 +function insertInlineSources(text, citations, representedUrls) {
@@ -185,6 +185,6 @@
 -                // as text, then append native Responses URL annotations as Markdown.
 -                slot.block.text = slot.block.text.replace(/cite[^]*/g, "").trimEnd();
 -                slot.block.text += formatUrlCitations(item);
-+                // Render native Responses URL annotations as inline domain
-+                // links beside the supported claim.
++                // Render native Responses URL annotations as complete URLs
++                // beside the supported claim.
 +                slot.block.text = renderResponseText(item);

@@ -2,9 +2,9 @@
  * Render OpenAI Responses URL annotations in a terminal-friendly format.
  *
  * The Responses API gives URL citation spans (`start_index`/`end_index`).
- * We preserve those spans by placing a compact, inline domain link next to
- * the supported claim. The TUI shows the domain while OSC-8 keeps the full URL
- * as the hyperlink destination.
+ * We preserve those spans by placing the complete URL next to the supported
+ * claim. TUI-capable terminals make it clickable; other terminals still show
+ * the address for copying or manual use.
  */
 
 function isUrlCitation(annotation) {
@@ -113,9 +113,7 @@ function buildCitationModel(item) {
 }
 
 function formatInlineSource(source) {
-  const label = escapeMarkdownLabel(
-    getDomain(source.url) || source.title || source.url,
-  );
+  const label = escapeMarkdownLabel(source.url);
   return `([${label}](<${safeMarkdownUrl(source.url)}>))`;
 }
 
@@ -173,7 +171,7 @@ function formatSourceFallback(sources) {
 }
 
 /**
- * Return only the deduplicated fallback source-link suffix.
+ * Return only the deduplicated fallback URL suffix.
  * This is useful for callers that already have a separately rendered body.
  */
 export function formatUrlCitations(item) {
@@ -182,7 +180,7 @@ export function formatUrlCitations(item) {
 }
 
 /**
- * Render output text with inline domain links next to supported claims.
+ * Render output text with complete URL links next to supported claims.
  * Sources without usable span positions are appended as a fallback.
  */
 export function renderResponseText(item) {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 - 2026-08-19
+
+- Publish the simplified B-minimal host-side search architecture.
+- Return nested `codex-local` Responses search text to the parent Pi model.
+- Remove plugin-owned citation formatting and custom final-answer rendering.
+- Publish as a public Pi package and npm package.
+
 ## Unreleased
 
 - Simplify the package to a thin host-side `web_search` adapter.

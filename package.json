@@ -1,11 +1,33 @@
 {
   "name": "pi-websearch",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi package that returns native OpenAI Responses web-search results to the parent model",
-  "private": true,
   "type": "module",
   "license": "MIT",
   "keywords": ["pi-package", "web-search", "openai-responses"],
+  "files": [
+    "extensions",
+    "src",
+    "config",
+    "README.md",
+    "CHANGELOG.md",
+    "package.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lyd123qw2008/pi-websearch.git"
+  },
+  "homepage": "https://github.com/lyd123qw2008/pi-websearch#readme",
+  "bugs": {
+    "url": "https://github.com/lyd123qw2008/pi-websearch/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
   "scripts": {
     "test": "node --test"
   },

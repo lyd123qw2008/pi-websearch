@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-08-19
+
+- Publish the npm package as `@lyd123qw2008/pi-websearch` because the unscoped
+  name conflicts with an existing npm package.
+- Document scoped npm and Pi installation.
+
 ## 0.2.0 - 2026-08-19
 
 - Publish the simplified B-minimal host-side search architecture.

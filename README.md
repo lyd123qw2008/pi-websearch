@@ -75,7 +75,7 @@ can use it as research context and follow the user's original instructions.
 For the current local development package:
 
 ```text
-pi install D:/liuyongdan/code/pi-websearch
+pi install npm:@lyd123qw2008/pi-websearch@0.2.1
 ```
 
 The package is enabled through Pi's settings package list. It does not require

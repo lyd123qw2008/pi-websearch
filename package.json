@@ -1,6 +1,6 @@
 {
-  "name": "pi-websearch",
-  "version": "0.2.0",
+  "name": "@lyd123qw2008/pi-websearch",
+  "version": "0.2.1",
   "description": "Pi package that returns native OpenAI Responses web-search results to the parent model",
   "type": "module",
   "license": "MIT",

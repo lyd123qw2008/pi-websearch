@@ -30,6 +30,12 @@ Parent model writes the final answer
 This is intentionally a thin adapter. It does not reimplement Codex citation
 formatting or final-answer rendering.
 
+## DSH adapter
+
+The same project contains a separate DSH package at [`dsh-web-search-codex/`](dsh-web-search-codex/). It registers `codex-local` as a `WebSearchProvider` on `ctx.web` and keeps `dsh-tool-web` as the model-facing tool owner. The DSH package has its own manifest, build, tests, and public DSH version dependencies; it does not depend on this Pi extension or on a neighboring Harness checkout.
+
+Use the DSH package README for Profile installation and configuration. The Profile may use a local `link:` spec while developing this personal package, but the package manifest itself contains no local path dependency.
+
 ## Responsibilities
 
 ### Plugin

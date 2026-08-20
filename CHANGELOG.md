@@ -15,6 +15,10 @@
 
 ## Unreleased
 
+- Add the standalone `@lyd123qw2008/dsh-web-search-codex` package under `dsh-web-search-codex/`.
+- Register `codex-local` on DSH `ctx.web` through the native Responses `web_search` server tool.
+- Keep the DSH package independent from the Pi extension and from local `deepseek-harness` path dependencies.
+
 ## 0.2.2 - 2026-08-19
 
 - Add configurable nested Responses SSE streaming with `nativeWebSearch.stream`.

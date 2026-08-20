@@ -30,7 +30,10 @@
     "typebox": "*"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "dsh:check": "corepack pnpm --dir dsh-web-search-codex run check",
+    "dsh:test": "corepack pnpm --dir dsh-web-search-codex test",
+    "dsh:build": "corepack pnpm --dir dsh-web-search-codex run build"
   },
   "pi": {
     "extensions": [

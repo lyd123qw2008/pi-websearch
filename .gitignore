@@ -7,5 +7,6 @@ auth.json
 settings.json
 models.json
 sessions/
+dsh-web-search-codex/lib/
 .env
 .env.*

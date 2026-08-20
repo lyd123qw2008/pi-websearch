@@ -15,6 +15,12 @@
 
 ## Unreleased
 
+## 0.2.2 - 2026-08-19
+
+- Add configurable nested Responses SSE streaming with `nativeWebSearch.stream`.
+- Make nested Responses SSE streaming the default while keeping buffered JSON as an opt-out.
+- Surface native web-search progress through Pi tool execution updates when streaming is enabled.
+- Add `renderCall()` query display, `/web-search stream on|off|status` controls, and a configurable footer status display selector.
 - Simplify the package to a thin host-side `web_search` adapter.
 - Return the nested `codex-local` Responses search text directly to the parent Pi
   model instead of formatting citations inside the plugin.

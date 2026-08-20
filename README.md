@@ -41,7 +41,7 @@ formatting or final-answer rendering.
 - Extract `response.output_text` or message `output_text` content.
 - Return that text unchanged as the tool result.
 - Report request failures or empty results.
-- Provide `/web-search on`, `/web-search off`, and `/web-search status`.
+- Provide `/web-search on`, `/web-search off`, `/web-search stream`, `/web-search display`, and `/web-search status`.
 
 ### Parent model
 
@@ -75,7 +75,7 @@ can use it as research context and follow the user's original instructions.
 For the current local development package:
 
 ```text
-pi install npm:@lyd123qw2008/pi-websearch@0.2.1
+pi install npm:@lyd123qw2008/pi-websearch@0.2.2
 ```
 
 The package is enabled through Pi's settings package list. It does not require
@@ -83,23 +83,40 @@ copying an extension into `~/.pi/agent/extensions/`.
 
 ## Configuration
 
-The only persistent setting is whether the plugin-owned search tool is enabled:
+The persistent settings control whether the plugin-owned search tool is enabled
+and whether the nested Responses request uses SSE streaming. Streaming defaults
+to `true` when omitted:
 
 ```json
 {
   "nativeWebSearch": {
-    "enabled": true
+    "enabled": true,
+    "stream": true,
+    "statusDisplay": "switch"
   }
 }
 ```
+
+`statusDisplay` defaults to `switch`, which keeps the persistent footer short:
+`web-search: on`. Other choices are `mode`, `verbose`, and `hidden`.
 
 Inside interactive Pi:
 
 ```text
 /web-search on
 /web-search off
+/web-search stream on
+/web-search stream off
+/web-search stream status
+/web-search display
+/web-search display switch|mode|verbose|hidden
 /web-search status
 ```
+
+With `stream: true`, the plugin parses nested Responses SSE events and sends
+search progress through Pi's tool `onUpdate` callback. The final nested result
+is still returned unchanged to the parent model. With `stream: false`, the
+plugin waits for one complete JSON Responses payload.
 
 The package expects the active model to be:
 
@@ -129,13 +146,14 @@ There is no fixed citation or output template.
 
 ## Runtime behavior
 
-The tool uses a normal Pi tool result. It does not install a custom renderer and
-does not use `terminate: true`:
+The tool uses a normal Pi tool result and does not use `terminate: true`:
 
 ```text
 user request
   ↓
 web_search tool execution
+  ↓
+(optional) nested Responses SSE progress updates
   ↓
 search result tool message
   ↓
@@ -143,6 +161,15 @@ parent model response
   ↓
 normal Pi rendering
 ```
+
+The persistent footer shows only `web-search: on` by default. Use
+`/web-search display` to open a selector for the short switch-only view, the
+switch-plus-mode view, a verbose implementation view, or no footer status.
+`/web-search status` always shows the detailed configuration regardless of the
+selected footer display. The tool call renderer shows the actual `query`. When
+nested streaming is enabled, Pi can also show progress such as
+`正在搜索网页：...`; those updates are UI/tool-execution updates, not additional
+user messages.
 
 TUI, text, JSON, and RPC modes therefore share the same basic behavior.
 
@@ -165,9 +192,11 @@ node --check src/extract-responses-text.mjs
 git diff --check
 ```
 
-Tests cover the minimal response-text extraction path:
+Tests cover the minimal response-text extraction and SSE paths:
 
 - canonical `response.output_text`;
 - message-content fallback;
 - ignoring search-call and reasoning items;
-- empty responses.
+- empty responses;
+- SSE chunk boundaries and CRLF;
+- multiline SSE data and the Responses `[DONE]` sentinel.

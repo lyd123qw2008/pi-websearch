@@ -1,5 +1,7 @@
 {
-  "webSearch": {
-    "enabled": false
+  "nativeWebSearch": {
+    "enabled": true,
+    "stream": true,
+    "statusDisplay": "switch"
   }
 }

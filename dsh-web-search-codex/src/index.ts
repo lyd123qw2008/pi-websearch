@@ -6,7 +6,6 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
-import type {} from '@deepseek-ai/dsh-session'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-web'
 import {
@@ -97,12 +96,6 @@ function resolveOptions(ctx: Context, config: Config): CodexLocalSearchProviderO
     stream: config.stream ?? true,
     maxOutputTokens: config.maxOutputTokens ?? CODEX_LOCAL_DEFAULT_MAX_OUTPUT_TOKENS,
     resolveOriginalRequest: () => latestUserRequest(ctx.get('agents')?.currentInitiator()),
-    recordRequest: request => {
-      ctx.get('agents')?.currentInitiator()?.session.append(
-        'web/codex-search-llm-request',
-        request,
-      )
-    },
   }
 }
 

@@ -16,13 +16,6 @@ import type {
 import { consumeResponsesSseResponse } from './responses-sse.js'
 import { extractResponsesSources, extractResponsesText, withStreamedText } from './extract.js'
 
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    /** Secret-free auxiliary Responses request recorded before dispatch. */
-    'web/codex-search-llm-request': CodexSearchLlmRequest
-  }
-}
-
 /** Stable provider id for an OpenAI Responses-compatible endpoint. */
 export const CODEX_LOCAL_PROVIDER_ID = 'codex-local'
 
@@ -54,8 +47,6 @@ export interface CodexLocalSearchProviderOptions {
   readonly maxOutputTokens?: number
   /** Resolve the latest user request when an initiating Agent exists. */
   readonly resolveOriginalRequest?: () => string | undefined
-  /** Record the exact secret-free request immediately before dispatch. */
-  readonly recordRequest?: (request: CodexSearchLlmRequest) => void
 }
 
 /** OpenAI Responses native web-search provider registered on `ctx.web`. */
@@ -89,8 +80,6 @@ export class CodexLocalSearchProvider implements WebSearchProvider {
       store: false,
       ...options.maxOutputTokens === undefined ? {} : { max_output_tokens: options.maxOutputTokens },
     }
-    options.recordRequest?.({ endpoint, body })
-    throwIfAborted(signal)
 
     let response: Response
     try {

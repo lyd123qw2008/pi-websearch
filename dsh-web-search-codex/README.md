@@ -21,13 +21,13 @@ The package does not read or refresh Codex `auth.json`. Configure an API key or 
 Install the package into the Web Profile's package directory. Replace `<DSH_HOME>` with the directory that contains your `profiles` and `settings.yaml` directories.
 
 ```text
-corepack pnpm --dir <DSH_HOME>/profiles/web add @lyd123qw2008/dsh-web-search-codex@0.1.0
+corepack pnpm --dir <DSH_HOME>/profiles/web add @lyd123qw2008/dsh-web-search-codex@0.1.1
 ```
 
 For example, on Windows:
 
 ```text
-corepack pnpm --dir D:\path\to\deepseek-harness-data\profiles\web add @lyd123qw2008/dsh-web-search-codex@0.1.0
+corepack pnpm --dir D:\path\to\deepseek-harness-data\profiles\web add @lyd123qw2008/dsh-web-search-codex@0.1.1
 ```
 
 The published package expects the DSH runtime peer dependencies to be supplied by the Profile. It carries only Schemastery as a regular runtime dependency.
@@ -132,7 +132,6 @@ A child Agent that calls DSH's `web_search` tool uses the same `ctx.web` provide
 - Maps only structured `url_citation` annotations to normalized `sources[]`; it does not scrape URLs from prose or renumber citations.
 - Rejects HTTP redirects before contacting the redirect target.
 - Resolves credentials for each search through `ctx.credentials`, with an environment fallback when that service is absent.
-- Records `web/codex-search-llm-request` with the endpoint and secret-free request body when an initiating Agent session exists.
 
 ## Model, token, and KV-cache effects
 
@@ -181,3 +180,4 @@ The tests cover nested input construction, raw text and URL-citation projection,
 - **No GUI progress channel** — SSE is parsed for cancellation and response assembly, but the current DSH `WebSearchProvider` API has no operation-progress callback.
 - **Auxiliary model latency remains** — direct Responses transport avoids app-server startup, but retrieval and nested generation still take time.
 - **Structured citations are optional** — an endpoint that returns text without `url_citation` annotations produces an answer with an empty `sources[]`; URLs are not scraped from prose.
+- **No durable request audit event** — the package does not add a provider-specific event to the DSH Session log, because an external package cannot extend the built-in persistence event catalog safely. The request body remains internal to the dispatch operation.

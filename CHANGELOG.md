@@ -17,7 +17,7 @@
 
 - Add the standalone `@lyd123qw2008/dsh-web-search-codex` package under `dsh-web-search-codex/`.
 - Register `codex-local` on DSH `ctx.web` through the native Responses `web_search` server tool.
-- Keep the DSH package independent from the Pi extension and from local `deepseek-harness` path dependencies.
+- Fix the standalone DSH provider so it does not write an unknown provider-specific event into DSH durable Session logs.
 
 ## 0.2.2 - 2026-08-19
 

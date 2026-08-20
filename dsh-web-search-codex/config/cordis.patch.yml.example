@@ -1,5 +1,6 @@
 # Optional Profile patch for the standalone provider.
-# Copy this file to the Profile's cordis.patch.yml and adjust endpoint/model.
+# Copy this file to the Web Profile's cordis.patch.yml.
+# Put endpoint, model, stream, and token settings in <DSH_HOME>/settings.yaml.
 # The Profile package.json must list this package as a dependency first.
 - id: web
   config:
@@ -7,10 +8,3 @@
 - insert:
     - id: web-search-codex
       name: '@lyd123qw2008/dsh-web-search-codex'
-      config:
-        apiKeyEnv: OPENAI_API_KEY
-        baseURL: http://127.0.0.1:18085/v1
-        model: gpt-5.6-luna
-        searchContextSize: medium
-        stream: true
-        maxOutputTokens: 4096

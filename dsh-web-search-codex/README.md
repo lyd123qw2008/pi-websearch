@@ -4,6 +4,124 @@ A standalone DeepSeek Harness `WebSearchProvider` that calls an OpenAI Responses
 
 This package lives in the personal [`pi-websearch`](https://github.com/lyd123qw2008/pi-websearch) project rather than the DeepSeek Harness source tree. It is independent from the Pi extension in the parent project and does not import Pi runtime APIs.
 
+## Prerequisites
+
+- A DeepSeek Harness Web Profile that mounts `@deepseek-ai/dsh-web` and `@deepseek-ai/dsh-tool-web`.
+- A DSH runtime from the `0.1.0-rc.8` release line, which satisfies this package's peer dependencies.
+- Node.js `22.19.0` or newer.
+- An OpenAI Responses-compatible endpoint that accepts `POST /responses` and the native `web_search` server tool.
+- An explicitly resolved bearer credential. The examples use the `OPENAI_API_KEY` credential reference; do not put the secret itself in `settings.yaml` or `cordis.patch.yml`.
+
+The package does not read or refresh Codex `auth.json`. Configure an API key or another explicitly resolved bearer credential. The existing Codex app-server remains the subagent path for complex research and coding tasks; this package is the ordinary `ctx.web` search path.
+
+## Install
+
+### Published package
+
+Install the package into the Web Profile's package directory. Replace `<DSH_HOME>` with the directory that contains your `profiles` and `settings.yaml` directories.
+
+```text
+corepack pnpm --dir <DSH_HOME>/profiles/web add @lyd123qw2008/dsh-web-search-codex@0.1.0
+```
+
+For example, on Windows:
+
+```text
+corepack pnpm --dir D:\path\to\deepseek-harness-data\profiles\web add @lyd123qw2008/dsh-web-search-codex@0.1.0
+```
+
+The published package expects the DSH runtime peer dependencies to be supplied by the Profile. It carries only Schemastery as a regular runtime dependency.
+
+### Local development package
+
+From this repository, install the package into the Profile with a local path. This `link:` belongs in the Profile's package manifest because it is the deliberate local development target; the published package manifest contains no path dependency on a Harness checkout.
+
+```text
+corepack pnpm --dir <DSH_HOME>/profiles/web add D:\path\to\pi-websearch\dsh-web-search-codex
+```
+
+Build the package before loading it from the Profile:
+
+```text
+corepack pnpm install
+corepack pnpm run build
+```
+
+## Enable the provider
+
+A raw provider package is inserted by the Profile patch; it is not a Bundle and does not belong in `dsh.profile.bundles`.
+
+Copy [`config/cordis.patch.yml.example`](config/cordis.patch.yml.example) to the Web Profile's `cordis.patch.yml`, or add the equivalent entries to that file:
+
+```yaml
+- id: web
+  config:
+    searchProvider: codex-local
+- insert:
+    - id: web-search-codex
+      name: '@lyd123qw2008/dsh-web-search-codex'
+```
+
+The `web` row selects this provider instead of the built-in `deepseek-official` provider. The `dsh-tool-web` model-facing `web_search` tool does not change, and no Agent preset change is required for sessions that call that tool.
+
+## Configure `settings.yaml`
+
+Put deployment-specific values in the DSH home settings file:
+
+```yaml
+# <DSH_HOME>/settings.yaml
+web-search-codex:
+  apiKeyEnv: OPENAI_API_KEY
+  baseURL: https://your-responses-gateway.example/v1
+  model: your-model
+  searchContextSize: medium
+  stream: true
+  maxOutputTokens: 4096
+```
+
+Configure the referenced credential through the DSH credential/environment mechanism. For an environment-backed credential, make `OPENAI_API_KEY` available to the DSH launch environment. Do not write the bearer value into this YAML file.
+
+The configuration section is projected for the next search, so endpoint/model changes and credential rotation do not require provider re-registration or a process restart. The provider becomes unavailable when the endpoint or model is missing.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `apiKey` | omitted | Literal bearer credential, marked as a Settings secret. Prefer `apiKeyEnv`. |
+| `apiKeyEnv` | `OPENAI_API_KEY` | Credential reference resolved for each search. |
+| `baseURL` | `$CODEX_LOCAL_BASE_URL` | Responses base URL or complete `/responses` endpoint. A missing value makes the provider unavailable. |
+| `model` | `$CODEX_LOCAL_MODEL` | Responses model id. A missing value makes the provider unavailable. |
+| `searchContextSize` | `medium` | Native search context: `low`, `medium`, or `high`. |
+| `stream` | `true` | Read Responses SSE instead of one JSON response. |
+| `maxOutputTokens` | `4096` | Positive generated-output cap. |
+
+## Use it
+
+Start or reload the Web Profile after installing and configuring the package:
+
+```text
+dsh --profile web
+```
+
+Then send an ordinary search request in the DSH Web UI, for example:
+
+```text
+查询 OpenAI 最近的 3 条官方新闻。每条事实后面保留网页标题和完整 URL。
+```
+
+The request path is:
+
+```text
+Agent
+  → dsh-tool-web: web_search
+  → ctx.web: searchProvider = codex-local
+  → POST /responses with native web_search
+  → nested Responses result
+  → parent model's final answer
+```
+
+The provider also receives the latest non-empty user request when an initiating Agent session exists. This lets the nested Responses model follow language, count, scope, title, URL, and output-format requirements instead of receiving only a shortened search query.
+
+A child Agent that calls DSH's `web_search` tool uses the same `ctx.web` provider selection. A child that directly invokes the Codex app-server's own native web search is a separate path and is not intercepted by this provider.
+
 ## Behavior
 
 - Registers `codex-local` on `ctx.web`.
@@ -15,63 +133,6 @@ This package lives in the personal [`pi-websearch`](https://github.com/lyd123qw2
 - Rejects HTTP redirects before contacting the redirect target.
 - Resolves credentials for each search through `ctx.credentials`, with an environment fallback when that service is absent.
 - Records `web/codex-search-llm-request` with the endpoint and secret-free request body when an initiating Agent session exists.
-
-The provider does not read or refresh Codex `auth.json`. Configure an API key or another explicitly resolved bearer credential. The existing Codex app-server remains the subagent path for complex research and coding tasks; this package is the ordinary `ctx.web` search path.
-
-## Configuration
-
-```yaml
-- id: web
-  config:
-    searchProvider: codex-local
-- insert:
-    - id: web-search-codex
-      name: '@lyd123qw2008/dsh-web-search-codex'
-      config:
-        apiKeyEnv: OPENAI_API_KEY
-        baseURL: http://127.0.0.1:18085/v1
-        model: gpt-5.6-luna
-        searchContextSize: medium
-        stream: true
-        maxOutputTokens: 4096
-```
-
-| Key | Default | Meaning |
-|---|---|---|
-| `apiKey` | omitted | Literal bearer credential, marked as a Settings secret. Prefer `apiKeyEnv`. |
-| `apiKeyEnv` | `OPENAI_API_KEY` | Credential reference resolved for each search. |
-| `baseURL` | `$CODEX_LOCAL_BASE_URL` | Responses base URL or complete `/responses` endpoint. |
-| `model` | `$CODEX_LOCAL_MODEL` | Responses model id. A missing value makes the provider unavailable. |
-| `searchContextSize` | `medium` | Native search context: `low`, `medium`, or `high`. |
-| `stream` | `true` | Read Responses SSE instead of one JSON response. |
-| `maxOutputTokens` | `4096` | Positive generated-output cap. |
-
-The configuration section is projected for the next search, so endpoint/model changes and credential rotation do not require provider re-registration or a process restart.
-
-## Install in a local DSH Profile
-
-Build the package first:
-
-```text
-corepack pnpm install
-corepack pnpm run build
-```
-
-For local profile development, add the package itself as a Profile dependency. This `link:` belongs in the Profile's package manifest because it is the deliberate local installation target; the published package manifest contains no path dependency on a Harness checkout.
-
-```text
-corepack pnpm --dir D:\liuyongdan\code\deepseek-harness-data\profiles\web add D:\liuyongdan\code\pi-websearch\dsh-web-search-codex
-```
-
-Then add a patch entry to the Profile's `cordis.patch.yml` as shown in the Configuration section. A raw provider package is inserted by the patch; it is not a Bundle and therefore does not belong in `dsh.profile.bundles`.
-
-For a published install, replace the local package spec with the npm version and keep the same patch entry.
-
-```text
-corepack pnpm add @lyd123qw2008/dsh-web-search-codex@0.1.0
-```
-
-The published package expects the DSH runtime peers to be supplied by the Profile. The package itself carries only Schemastery as a regular runtime dependency.
 
 ## Model, token, and KV-cache effects
 
@@ -109,11 +170,12 @@ The result enters the conversation as a normal tool result and follows the usual
 corepack pnpm run check
 corepack pnpm test
 corepack pnpm run build
+corepack pnpm pack --dry-run
 ```
 
 The tests cover nested input construction, raw text and URL-citation projection, SSE chunk boundaries, native request fields, missing credentials, cancellation, redirect policy, Settings hot updates, secret redaction, Loader namespace composition, and provider disposal.
 
-## Known limitations and deferred work
+## Known Limitations and Deferred Work
 
 - **Explicit bearer credentials only** — the package does not read or refresh Codex `auth.json`; a future OAuth integration needs a dedicated credential provider.
 - **No GUI progress channel** — SSE is parsed for cancellation and response assembly, but the current DSH `WebSearchProvider` API has no operation-progress callback.

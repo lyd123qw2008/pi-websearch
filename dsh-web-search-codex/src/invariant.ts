@@ -12,8 +12,8 @@ export const name = 'web-search-codex-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: the provider owns a pre-dispatch audit event but no
- * later authoritative dispatch event to relate it to. Request projection is
+ * No runtime invariant: this provider has no package-owned durable event or
+ * authoritative post-dispatch relation to validate. Request projection is
  * covered at the provider boundary instead.
  */
 const install: InvariantInstaller = () => {}

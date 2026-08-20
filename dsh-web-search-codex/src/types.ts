@@ -34,7 +34,7 @@ export interface ResponsesSearchResponse {
 /** Search context-size values accepted by the OpenAI Responses server tool. */
 export type ResponsesSearchContextSize = 'low' | 'medium' | 'high'
 
-/** Secret-free auxiliary request recorded before a Responses search dispatch. */
+/** Secret-free Responses request envelope used for request projection and tests. */
 export interface CodexSearchLlmRequest {
   /** Fully resolved Responses endpoint. */
   readonly endpoint: string

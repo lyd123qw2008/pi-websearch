@@ -91,9 +91,7 @@ describe('CodexLocalSearchProvider', () => {
         }],
       })
     }))
-    const recordRequest = vi.fn()
     const result = await provider({
-      recordRequest,
       resolveOriginalRequest: () => 'Use Chinese and preserve URLs.',
     }).search({ query: 'latest news', maxResults: 8 })
 
@@ -113,8 +111,6 @@ describe('CodexLocalSearchProvider', () => {
       store: false,
       max_output_tokens: 512,
     })
-    expect(recordRequest).toHaveBeenCalledOnce()
-    expect(recordRequest.mock.calls[0]?.[0].body).toMatchObject({ model: 'gpt-search', stream: false, store: false })
   })
 
   it('consumes streamed Responses events across chunk boundaries', async () => {

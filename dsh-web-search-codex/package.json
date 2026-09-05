@@ -1,6 +1,6 @@
 {
   "name": "@lyd123qw2008/dsh-web-search-codex",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Standalone DeepSeek Harness WebSearchProvider for an OpenAI Responses native web_search endpoint",
   "keywords": [
     "deepseek-harness",

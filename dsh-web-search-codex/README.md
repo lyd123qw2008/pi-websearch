@@ -7,7 +7,7 @@ This package lives in the personal [`pi-websearch`](https://github.com/lyd123qw2
 ## Prerequisites
 
 - A DeepSeek Harness Web Profile that mounts `@deepseek-ai/dsh-web` and `@deepseek-ai/dsh-tool-web`.
-- A DSH runtime from the `0.1.0-rc.8` release line, which satisfies this package's peer dependencies.
+- A DSH runtime from the `0.1.0-rc.8` release line or newer. The provider reads the current `Session.snapshotEvents()` API and retains the legacy `Session.events` fallback.
 - Node.js `22.19.0` or newer.
 - An OpenAI Responses-compatible endpoint that accepts `POST /responses` and the native `web_search` server tool.
 - An explicitly resolved bearer credential. The examples use the `OPENAI_API_KEY` credential reference; do not put the secret itself in `settings.yaml` or `cordis.patch.yml`.
@@ -21,13 +21,13 @@ The package does not read or refresh Codex `auth.json`. Configure an API key or 
 Install the package into the Web Profile's package directory. Replace `<DSH_HOME>` with the directory that contains your `profiles` and `settings.yaml` directories.
 
 ```text
-corepack pnpm --dir <DSH_HOME>/profiles/web add @lyd123qw2008/dsh-web-search-codex@0.1.1
+corepack pnpm --dir <DSH_HOME>/profiles/web add @lyd123qw2008/dsh-web-search-codex@0.1.2
 ```
 
 For example, on Windows:
 
 ```text
-corepack pnpm --dir D:\path\to\deepseek-harness-data\profiles\web add @lyd123qw2008/dsh-web-search-codex@0.1.1
+corepack pnpm --dir D:\path\to\deepseek-harness-data\profiles\web add @lyd123qw2008/dsh-web-search-codex@0.1.2
 ```
 
 The published package expects the DSH runtime peer dependencies to be supplied by the Profile. It carries only Schemastery as a regular runtime dependency.
@@ -118,7 +118,7 @@ Agent
   → parent model's final answer
 ```
 
-The provider also receives the latest non-empty user request when an initiating Agent session exists. This lets the nested Responses model follow language, count, scope, title, URL, and output-format requirements instead of receiving only a shortened search query.
+The provider also receives the latest non-empty user request when an initiating Agent session exists. It reads the current Session snapshot API and falls back to the legacy event array for older DSH runtimes. This lets the nested Responses model follow language, count, scope, title, URL, and output-format requirements instead of receiving only a shortened search query.
 
 A child Agent that calls DSH's `web_search` tool uses the same `ctx.web` provider selection. A child that directly invokes the Codex app-server's own native web search is a separate path and is not intercepted by this provider.
 

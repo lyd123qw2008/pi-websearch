@@ -6,7 +6,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-web'
 import {
   CODEX_LOCAL_DEFAULT_MAX_OUTPUT_TOKENS,
@@ -44,7 +44,7 @@ const BASE_URL_ENV = 'CODEX_LOCAL_BASE_URL'
 const MODEL_ENV = 'CODEX_LOCAL_MODEL'
 
 /** Settings namespace carrying the endpoint, model, and native search options. */
-export const WEB_SEARCH_CODEX_SETTINGS_NAMESPACE = settingsNamespace('web-search-codex')
+export const WEB_SEARCH_CODEX_SETTINGS_NAMESPACE = 'web-search-codex' as SettingsNamespace
 
 /** Plugin configuration. Missing endpoint or model values make the provider unavailable. */
 export interface Config {
@@ -106,11 +106,12 @@ function resolveOptions(ctx: Context, config: Config): CodexLocalSearchProviderO
  */
 export function apply(ctx: Context, config: Config): void {
   let current: () => Config = () => config
-  installSettingsSection(ctx, WEB_SEARCH_CODEX_SETTINGS_NAMESPACE, Config, config, {
-    setSource: source => { current = source },
-    onChange: () => {
-      // Registration carries no resolved values; the provider projects the section per search.
-    },
+  ctx.inject(['settings'], (settingsCtx) => {
+    const scope = settingsCtx.settings.register(WEB_SEARCH_CODEX_SETTINGS_NAMESPACE, Config, { base: config })
+    current = () => scope.get()
+    settingsCtx.effect(() => () => {
+      current = () => config
+    })
   })
   ctx.web.registerSearchProvider(new CodexLocalSearchProvider(() => resolveOptions(ctx, current())))
 }
@@ -121,13 +122,23 @@ function hasCredential(value: string | undefined): value is string {
 
 function latestUserRequest(agent: Agent | undefined): string | undefined {
   if (agent === undefined) return undefined
-  for (let index = agent.session.events.length - 1; index >= 0; index -= 1) {
-    const event = agent.session.events[index]
+  const session = agent.session as unknown as {
+    snapshotEvents?: () => readonly SessionEventLike[]
+    events?: readonly SessionEventLike[]
+  }
+  const events = session.snapshotEvents?.() ?? session.events ?? []
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
     if (event?.type !== 'user/message') continue
     const text = textFromContent(event.data.content)
     if (text.trim().length > 0) return text
   }
   return undefined
+}
+
+type SessionEventLike = {
+  type: string
+  data: { content: readonly ContentBlock[] }
 }
 
 function textFromContent(content: readonly ContentBlock[]): string {

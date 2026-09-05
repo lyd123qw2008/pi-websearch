@@ -18,6 +18,7 @@
 - Add the standalone `@lyd123qw2008/dsh-web-search-codex` package under `dsh-web-search-codex/`.
 - Register `codex-local` on DSH `ctx.web` through the native Responses `web_search` server tool.
 - Fix the standalone DSH provider so it does not write an unknown provider-specific event into DSH durable Session logs.
+- Make `dsh-web-search-codex` read the DSH Session snapshot API while retaining the legacy event-array fallback.
 
 ## 0.2.2 - 2026-08-19
 

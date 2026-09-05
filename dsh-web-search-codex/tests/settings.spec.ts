@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
@@ -34,6 +36,7 @@ function jsonResponse(body: unknown): Response {
 async function boot(): Promise<{ ctx: Context; settingsFiber: Fiber; pluginFiber: Fiber }> {
   const ctx = new Context()
   await ctx.plugin(WebRuntime, { searchProvider: 'codex-local' })
+  await ctx.plugin(AgentRegistry)
   const settingsFiber = ctx.plugin(MemorySettings)
   await settingsFiber.await()
   const pluginFiber = ctx.plugin(codexPlugin, {
@@ -78,6 +81,30 @@ describe('web-search-codex settings section', () => {
 
     expect(JSON.stringify(descriptor)).not.toContain('stored-secret')
     expect(descriptor?.secrets).toEqual([{ path: ['apiKey'], set: true }])
+    await bench.ctx.fiber.dispose()
+  })
+
+  it('reads the latest user request from the current Session snapshot', async () => {
+    const bench = await boot()
+    const agent = {
+      id: 'initiator-session',
+      session: {
+        snapshotEvents: () => [{
+          type: 'user/message',
+          data: { content: [{ type: 'text', text: 'preserve this original request' }] },
+        }],
+      },
+    } as unknown as Agent
+    let input: unknown
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_request, init) => {
+      const body = JSON.parse(String(init?.body)) as { input?: unknown }
+      input = body.input
+      return jsonResponse({ output_text: 'ok' })
+    })
+
+    await bench.ctx.agents.withInitiator(agent, () => bench.ctx.web.search({ query: 'latest news' }))
+
+    expect(input).toContain('Original user request:\npreserve this original request')
     await bench.ctx.fiber.dispose()
   })
 

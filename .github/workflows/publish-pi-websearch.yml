@@ -1,0 +1,37 @@
+name: Publish Pi Websearch Package
+
+# Mirrors publish-dsh-web-search.yml, for the root package in this repository.
+# The package declares no dependencies (only peer dependencies) and its tests use the
+# Node test runner, so the job installs nothing and publishes straight from the
+# checkout. The version in package.json is what gets published, so bump it before
+# dispatching; `npm publish` fails when the version already exists.
+#
+# Requires, on npmjs.com -> Package -> Settings -> Trusted publishing:
+#   Repository: lyd123qw2008/pi-websearch
+#   Workflow:   publish-pi-websearch.yml
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Test
+        run: npm test
+
+      - name: Publish
+        run: npm publish --access public

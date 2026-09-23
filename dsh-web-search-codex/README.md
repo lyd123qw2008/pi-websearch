@@ -7,10 +7,10 @@ This package lives in the personal [`pi-websearch`](https://github.com/lyd123qw2
 ## Prerequisites
 
 - A DeepSeek Harness Web Profile that mounts `@deepseek-ai/dsh-web` and `@deepseek-ai/dsh-tool-web`.
-- A DSH runtime from the `0.1.0-rc.8` release line or newer. The provider reads the current `Session.snapshotEvents()` API and retains the legacy `Session.events` fallback.
+- DSH `0.1.7-alpha.1` or newer. This release configures the provider through the 0.1.7 volatile-section API; `0.1.2` is the last release for the older `0.1.0-rc.x` line, whose `ctx.settings.register()` scope API no longer exists.
 - Node.js `22.19.0` or newer.
 - An OpenAI Responses-compatible endpoint that accepts `POST /responses` and the native `web_search` server tool.
-- An explicitly resolved bearer credential. The examples use the `OPENAI_API_KEY` credential reference; do not put the secret itself in `settings.yaml` or `cordis.patch.yml`.
+- An explicitly resolved bearer credential. The examples use the `OPENAI_API_KEY` credential reference; do not write the secret itself into the Profile patch or any settings document.
 
 The package does not read or refresh Codex `auth.json`. Configure an API key or another explicitly resolved bearer credential. The existing Codex app-server remains the subagent path for complex research and coding tasks; this package is the ordinary `ctx.web` search path.
 
@@ -18,16 +18,16 @@ The package does not read or refresh Codex `auth.json`. Configure an API key or 
 
 ### Published package
 
-Install the package into the Web Profile's package directory. Replace `<DSH_HOME>` with the directory that contains your `profiles` and `settings.yaml` directories.
+Install the package into the Web Profile's package directory. Replace `<DSH_HOME>` with the directory that contains your `profiles` directory.
 
 ```text
-corepack pnpm --dir <DSH_HOME>/profiles/web add @lyd123qw2008/dsh-web-search-codex@0.1.2
+corepack pnpm --dir <DSH_HOME>/profiles/web add @lyd123qw2008/dsh-web-search-codex@0.1.3
 ```
 
 For example, on Windows:
 
 ```text
-corepack pnpm --dir D:\path\to\deepseek-harness-data\profiles\web add @lyd123qw2008/dsh-web-search-codex@0.1.2
+corepack pnpm --dir D:\path\to\deepseek-harness-data\profiles\web add @lyd123qw2008/dsh-web-search-codex@0.1.3
 ```
 
 The published package expects the DSH runtime peer dependencies to be supplied by the Profile. It carries only Schemastery as a regular runtime dependency.
@@ -60,28 +60,32 @@ Copy [`config/cordis.patch.yml.example`](config/cordis.patch.yml.example) to the
 - insert:
     - id: web-search-codex
       name: '@lyd123qw2008/dsh-web-search-codex'
+      config:
+        apiKeyEnv: OPENAI_API_KEY
+        baseURL: https://your-responses-gateway.example/v1
+        model: your-model
+        searchContextSize: medium
+        stream: true
+        maxOutputTokens: 4096
 ```
 
 The `web` row selects this provider instead of the built-in `deepseek-official` provider. The `dsh-tool-web` model-facing `web_search` tool does not change, and no Agent preset change is required for sessions that call that tool.
 
-## Configure `settings.yaml`
+## Configure the provider entry
 
-Put deployment-specific values in the DSH home settings file:
+Every `web-search-codex` field is a volatile Config field, so the entry above is itself the `web-search-codex` settings namespace:
 
-```yaml
-# <DSH_HOME>/settings.yaml
-web-search-codex:
-  apiKeyEnv: OPENAI_API_KEY
-  baseURL: https://your-responses-gateway.example/v1
-  model: your-model
-  searchContextSize: medium
-  stream: true
-  maxOutputTokens: 4096
-```
+- the block in `cordis.patch.yml` is the deployment base layer;
+- the DSH settings surface lists `web-search-codex` and writes user overrides into the Profile patch;
+- the provider reads each field on every search, so a saved change reaches the next search without re-registering the provider.
+
+A Profile patch edit is live (`patchReload: live`), so adding or changing this block takes effect without restarting DSH.
+
+DSH 0.1.7 no longer reads a `<DSH_HOME>/settings.yaml` section for this package. A plugin entry whose Config carries no volatile field is invisible to the settings plane, so no stored section can be imported for it — that is the `0.1.2` failure this release fixes. Declare the values inline as shown, or through the settings surface once the entry is mounted.
+
+`baseURL` and `model` deliberately have no schema default: a missing value makes the provider unavailable instead of silently searching somewhere else. `CODEX_LOCAL_BASE_URL` and `CODEX_LOCAL_MODEL` remain as launch-environment fallbacks for a composition that cannot carry the values inline.
 
 Configure the referenced credential through the DSH credential/environment mechanism. For an environment-backed credential, make `OPENAI_API_KEY` available to the DSH launch environment. Do not write the bearer value into this YAML file.
-
-The configuration section is projected for the next search, so endpoint/model changes and credential rotation do not require provider re-registration or a process restart. The provider becomes unavailable when the endpoint or model is missing.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -125,6 +129,8 @@ A child Agent that calls DSH's `web_search` tool uses the same `ctx.web` provide
 ## Behavior
 
 - Registers `codex-local` on `ctx.web`.
+- Declares its whole Config volatile, so the composition entry is also the `web-search-codex` settings namespace and needs no registration call.
+- Reads the endpoint, model, and search options through the volatile references on every search.
 - Keeps `dsh-tool-web` as the only model-facing `web_search` tool owner.
 - Sends the latest non-empty user request, the search query, and a short nested-search instruction.
 - Uses `POST /responses`, `web_search`, `store: false`, and configurable SSE streaming.
@@ -172,7 +178,7 @@ corepack pnpm run build
 corepack pnpm pack --dry-run
 ```
 
-The tests cover nested input construction, raw text and URL-citation projection, SSE chunk boundaries, native request fields, missing credentials, cancellation, redirect policy, Settings hot updates, secret redaction, Loader namespace composition, and provider disposal.
+The tests cover nested input construction, raw text and URL-citation projection, SSE chunk boundaries, native request fields, missing credentials, cancellation, redirect policy, volatile-section settings updates through the real Loader, volatile/secret Config declaration, Loader namespace composition, and provider disposal.
 
 ## Known Limitations and Deferred Work
 

@@ -1,30 +1,13 @@
+/** The `web-search-codex` settings section layered over the composition entry. */
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import type { Fiber } from '@deepseek-ai/cordis'
+import { Context, resolveConfig, type Fiber, type Plugin } from '@deepseek-ai/cordis'
+import Loader from '@deepseek-ai/cordis-plugin-loader'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import WebRuntime from '@deepseek-ai/dsh-web'
-import { SettingsProvider } from '@deepseek-ai/dsh-settings'
-import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import * as codexPlugin from '../src/index.js'
-import { WEB_SEARCH_CODEX_SETTINGS_NAMESPACE } from '../src/index.js'
-
-class MemorySettings extends SettingsProvider {
-  doc: Record<string, unknown> = {}
-
-  get writable(): boolean {
-    return true
-  }
-
-  protected load(): Promise<Record<string, unknown>> {
-    return Promise.resolve(structuredClone(this.doc))
-  }
-
-  protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
-    this.doc = { ...this.doc, [ns]: structuredClone(section) }
-    return Promise.resolve()
-  }
-}
+import { Config } from '../src/index.js'
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -33,22 +16,71 @@ function jsonResponse(body: unknown): Response {
   })
 }
 
-async function boot(): Promise<{ ctx: Context; settingsFiber: Fiber; pluginFiber: Fiber }> {
+function merge(base: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...base }
+  for (const [key, value] of Object.entries(patch)) {
+    const before = result[key]
+    result[key] = before && typeof before === 'object' && !Array.isArray(before)
+      && value && typeof value === 'object' && !Array.isArray(value)
+      ? merge(before as Record<string, unknown>, value as Record<string, unknown>) : value
+  }
+  return result
+}
+
+/**
+ * Mount a consumer behind Loader and edit its raw configuration, the same path
+ * profile reconciliation uses. Inlined from the Harness `liveConfig` fixture
+ * because this package lives outside the Harness source tree.
+ * @param ctx - context the entry is created in.
+ * @param plugin - the plugin module to mount as a Loader builtin.
+ * @param initial - the composition entry's initial raw config.
+ * @returns the entry, its fiber, and the patch/replace helpers.
+ */
+async function liveConfig(ctx: Context, plugin: Plugin, initial: object = {}) {
+  if (ctx.get('loader') === undefined) {
+    await ctx.plugin(Loader)
+  }
+  const name = `live-${Object.keys(ctx.loader.builtins).length}`
+  ctx.loader.builtins[name] = plugin
+  const options = { id: plugin.name ?? name, name: `cordis:${name}`, config: initial }
+  const id = await ctx.loader.create(options)
+  const entry = ctx.loader.resolve(id)
+  await entry.fiber!.await()
+  const replace = async (next: Record<string, unknown>) => {
+    const fiber = entry.fiber!
+    resolveConfig(fiber.runtime!, fiber.ctx.waterfall(fiber, 'internal/config', next, () => next))
+    await entry.update({ config: next })
+    await entry.fiber!.await()
+    ctx.emit('app-boot/config-reload')
+  }
+  return {
+    entry,
+    fiber: entry.fiber!,
+    update: (patch: Record<string, unknown>) => replace(merge(entry.options.config as Record<string, unknown>, patch)),
+    replace,
+  }
+}
+
+async function boot(): Promise<{ ctx: Context; live: Awaited<ReturnType<typeof liveConfig>> }> {
   const ctx = new Context()
   await ctx.plugin(WebRuntime, { searchProvider: 'codex-local' })
   await ctx.plugin(AgentRegistry)
-  const settingsFiber = ctx.plugin(MemorySettings)
-  await settingsFiber.await()
-  const pluginFiber = ctx.plugin(codexPlugin, {
+  const live = await liveConfig(ctx, codexPlugin, {
     apiKey: 'search-key',
     baseURL: 'https://search.entry.test/v1',
     model: 'search-model',
     stream: false,
   })
-  await pluginFiber.await()
-  return { ctx, settingsFiber, pluginFiber }
+  return { ctx, live }
 }
 
+/**
+ * Run one search and answer the endpoint it reached. A fresh `Response` per call
+ * because a body can only be read once, and the call history is cleared because
+ * repeated `spyOn` returns the same spy.
+ * @param ctx - context whose `ctx.web` serves the search.
+ * @returns the URL the provider fetched.
+ */
 async function searchOnce(ctx: Context): Promise<string> {
   const fetchSpy = vi.spyOn(globalThis, 'fetch')
     .mockImplementation(() => Promise.resolve(jsonResponse({ output_text: 'ok' })))
@@ -64,24 +96,28 @@ describe('web-search-codex settings section', () => {
     const bench = await boot()
     expect(await searchOnce(bench.ctx)).toContain('https://search.entry.test/v1')
 
-    await bench.ctx.settings.update(WEB_SEARCH_CODEX_SETTINGS_NAMESPACE, {
-      baseURL: 'https://search.stored.test/v1',
-    })
+    await bench.live.update({ baseURL: 'https://search.stored.test/v1' })
 
     expect(await searchOnce(bench.ctx)).toContain('https://search.stored.test/v1')
     await bench.ctx.fiber.dispose()
   })
 
-  it('keeps the literal key out of described settings', async () => {
-    const bench = await boot()
-    await bench.ctx.settings.update(WEB_SEARCH_CODEX_SETTINGS_NAMESPACE, { apiKey: 'stored-secret' })
+  it('declares every Config field volatile so the entry is a settings namespace', () => {
+    // The whole reason this package needs no registration call: a volatile field
+    // is what makes the entry describable by `ctx.settings`. A non-volatile field
+    // makes the entry invisible there, so a stored section can never be imported.
+    const fields = Object.entries(Config.dict ?? {})
+    expect(fields.map(([key]) => key)).toEqual([
+      'apiKey', 'apiKeyEnv', 'baseURL', 'model', 'searchContextSize', 'stream', 'maxOutputTokens',
+    ])
+    for (const [key, child] of fields) {
+      expect(`${key}:${String(child.meta.volatile)}`).toBe(`${key}:true`)
+    }
+  })
 
-    const [descriptor] = bench.ctx.settings.describe({ redactSecrets: true })
-      .filter(row => String(row.ns) === 'web-search-codex')
-
-    expect(JSON.stringify(descriptor)).not.toContain('stored-secret')
-    expect(descriptor?.secrets).toEqual([{ path: ['apiKey'], set: true }])
-    await bench.ctx.fiber.dispose()
+  it('marks the literal credential as a settings secret', () => {
+    expect(Config.dict?.apiKey?.meta.role).toBe('secret')
+    expect(Config.dict?.apiKeyEnv?.meta.role).toBe('credential-ref')
   })
 
   it('reads the latest user request from the current Session snapshot', async () => {
@@ -108,24 +144,11 @@ describe('web-search-codex settings section', () => {
     await bench.ctx.fiber.dispose()
   })
 
-  it('falls back to the composition entry when settings detach', async () => {
+  it('releases the provider when the plugin unloads', async () => {
     const bench = await boot()
-    await bench.ctx.settings.update(WEB_SEARCH_CODEX_SETTINGS_NAMESPACE, {
-      baseURL: 'https://search.stored.test/v1',
-    })
-    expect(await searchOnce(bench.ctx)).toContain('https://search.stored.test/v1')
-
-    await bench.settingsFiber.dispose()
     expect(await searchOnce(bench.ctx)).toContain('https://search.entry.test/v1')
-    await bench.ctx.fiber.dispose()
-  })
 
-  it('releases the namespace and provider when the plugin unloads', async () => {
-    const bench = await boot()
-    expect(bench.ctx.settings.describe().map(row => String(row.ns))).toContain('web-search-codex')
-
-    await bench.pluginFiber.dispose()
-    expect(bench.ctx.settings.describe().map(row => String(row.ns))).not.toContain('web-search-codex')
+    await (bench.live.fiber as Fiber).dispose()
     await expect(bench.ctx.web.search({ query: 'after-dispose' })).rejects.toMatchObject({
       code: 'WEB_PROVIDER_CONFIGURED_MISSING',
     })

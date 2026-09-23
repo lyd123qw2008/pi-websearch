@@ -1,12 +1,11 @@
 /** Register the OpenAI Responses native web-search provider in `ctx.web`. */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
-import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-web'
 import {
   CODEX_LOCAL_DEFAULT_MAX_OUTPUT_TOKENS,
@@ -43,38 +42,71 @@ const DEFAULT_API_KEY_ENV = 'OPENAI_API_KEY'
 const BASE_URL_ENV = 'CODEX_LOCAL_BASE_URL'
 const MODEL_ENV = 'CODEX_LOCAL_MODEL'
 
-/** Settings namespace carrying the endpoint, model, and native search options. */
-export const WEB_SEARCH_CODEX_SETTINGS_NAMESPACE = 'web-search-codex' as SettingsNamespace
+/**
+ * Settings namespace carrying the endpoint, model, and native search options.
+ *
+ * On DSH 0.1.7 a settings namespace IS the profile entry id: `ctx.settings`
+ * surfaces one form per composition entry whose Config declares volatile fields,
+ * and there is no separate registration call. This constant therefore names the
+ * entry that owns these fields rather than a scope the package registers.
+ */
+export const WEB_SEARCH_CODEX_SETTINGS_NAMESPACE = 'web-search-codex'
 
-/** Plugin configuration. Missing endpoint or model values make the provider unavailable. */
+/**
+ * Plugin configuration. Missing endpoint or model values make the provider
+ * unavailable.
+ *
+ * Every field is `Volatile`: a volatile Config field is what makes the entry
+ * editable from the DSH settings surface, and reading it through `get()` at each
+ * use is what lets a stored override reach the next search without re-registering
+ * the provider. A field that is not volatile makes the whole entry invisible to
+ * `ctx.settings`, which also means no stored section can ever be imported for it.
+ */
 export interface Config {
   /** Literal bearer credential; prefer {@link apiKeyEnv}. */
-  apiKey?: string
+  apiKey: Volatile<string | undefined>
   /** Credential reference resolved for each search. */
-  apiKeyEnv?: string
+  apiKeyEnv: Volatile<string>
   /** Responses base URL or complete `/responses` endpoint. */
-  baseURL?: string
+  baseURL: Volatile<string | undefined>
   /** Responses model id. */
-  model?: string
+  model: Volatile<string | undefined>
   /** Native Responses web-search context size. */
-  searchContextSize?: ResponsesSearchContextSize
+  searchContextSize: Volatile<ResponsesSearchContextSize>
   /** Consume the endpoint's SSE stream. Defaults to true. */
-  stream?: boolean
+  stream: Volatile<boolean>
   /** Optional generated-output token cap. */
-  maxOutputTokens?: number
+  maxOutputTokens: Volatile<number>
 }
 
-export const Config: z<Config> = z.object({
-  apiKey: z.string().role('secret'),
-  apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
-  baseURL: z.string(),
-  model: z.string(),
-  searchContextSize: z.union(['low', 'medium', 'high'] as const).default(CODEX_LOCAL_DEFAULT_SEARCH_CONTEXT_SIZE),
-  stream: z.boolean().default(true),
-  maxOutputTokens: z.number().step(1).min(1).default(CODEX_LOCAL_DEFAULT_MAX_OUTPUT_TOKENS),
+/**
+ * Schema for {@link Config}. Deliberately un-annotated: a volatile field's parsed
+ * output type is a `Volatile` reference rather than the field's data type, so an
+ * explicit `z<Config>` return annotation does not hold. `apply` keeps the
+ * interface as its parameter type.
+ */
+export const Config = z.object({
+  apiKey: z.string().role('secret').volatile(),
+  apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV).volatile(),
+  baseURL: z.string().volatile(),
+  model: z.string().volatile(),
+  searchContextSize: z.union(['low', 'medium', 'high'] as const).default(CODEX_LOCAL_DEFAULT_SEARCH_CONTEXT_SIZE).volatile(),
+  stream: z.boolean().default(true).volatile(),
+  maxOutputTokens: z.number().step(1).min(1).default(CODEX_LOCAL_DEFAULT_MAX_OUTPUT_TOKENS).volatile(),
 })
 
-function resolveOptions(ctx: Context, config: Config): CodexLocalSearchProviderOptions {
+/**
+ * Project the entry's current section into the options one search runs with.
+ * Environment fallbacks stay here rather than in the provider: every value the
+ * provider reads is already fully defaulted.
+ * @param ctx - plugin context supplying the credential and environment planes.
+ * @param config - the section values read at this call.
+ * @returns options for one search.
+ */
+function resolveOptions(
+  ctx: Context,
+  config: { [K in keyof Config]: ReturnType<Config[K]['get']> },
+): CodexLocalSearchProviderOptions {
   const apiKeyEnv = credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV)
   const literalApiKey = hasCredential(config.apiKey) ? config.apiKey : undefined
   return {
@@ -101,19 +133,25 @@ function resolveOptions(ctx: Context, config: Config): CodexLocalSearchProviderO
 
 /**
  * Register the Codex-local Responses search provider.
- * @param ctx - context supplying Web, credentials, settings, and session services.
- * @param config - initial settings section projected for each later search.
+ *
+ * The entry's Config is the settings section: `apply` snapshots nothing, it
+ * reads each volatile field through `get()` inside the options callback, so a
+ * value saved from the settings surface is what the next search uses. DSH 0.1.7
+ * removed the old `ctx.settings.register()` scope API, and a registration call
+ * here would throw before the provider ever reached the registry.
+ * @param ctx - context supplying Web, credentials, and session services.
+ * @param config - the entry's volatile section.
  */
 export function apply(ctx: Context, config: Config): void {
-  let current: () => Config = () => config
-  ctx.inject(['settings'], (settingsCtx) => {
-    const scope = settingsCtx.settings.register(WEB_SEARCH_CODEX_SETTINGS_NAMESPACE, Config, { base: config })
-    current = () => scope.get()
-    settingsCtx.effect(() => () => {
-      current = () => config
-    })
-  })
-  ctx.web.registerSearchProvider(new CodexLocalSearchProvider(() => resolveOptions(ctx, current())))
+  ctx.web.registerSearchProvider(new CodexLocalSearchProvider(() => resolveOptions(ctx, {
+    apiKey: config.apiKey.get(),
+    apiKeyEnv: config.apiKeyEnv.get(),
+    baseURL: config.baseURL.get(),
+    model: config.model.get(),
+    searchContextSize: config.searchContextSize.get(),
+    stream: config.stream.get(),
+    maxOutputTokens: config.maxOutputTokens.get(),
+  })))
 }
 
 function hasCredential(value: string | undefined): value is string {

@@ -1,6 +1,11 @@
 # Optional Profile patch for the standalone provider.
 # Copy this file to the Web Profile's cordis.patch.yml.
-# Put endpoint, model, stream, and token settings in <DSH_HOME>/settings.yaml.
+#
+# The endpoint and model live on the entry itself. On DSH 0.1.7 a settings
+# namespace IS the profile entry, so this block is both the deployment default
+# and the base layer the settings surface edits; a <DSH_HOME>/settings.yaml
+# section is no longer read.
+#
 # The Profile package.json must list this package as a dependency first.
 - id: web
   config:
@@ -8,3 +13,10 @@
 - insert:
     - id: web-search-codex
       name: '@lyd123qw2008/dsh-web-search-codex'
+      config:
+        apiKeyEnv: OPENAI_API_KEY
+        baseURL: https://your-responses-gateway.example/v1
+        model: your-model
+        searchContextSize: medium
+        stream: true
+        maxOutputTokens: 4096

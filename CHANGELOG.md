@@ -15,6 +15,27 @@
 
 ## Unreleased
 
+### `@lyd123qw2008/dsh-web-search-codex` 0.1.3 — 2026-09-23
+
+- Move the package onto the DSH 0.1.7 settings API. Every `Config` field is now
+  `volatile()`, which is what makes the composition entry itself a settings
+  namespace.
+- Remove the `ctx.settings.register()` call. DSH 0.1.7 replaced the registered
+  scope API with one form per profile entry and no longer exposes `register()`,
+  so the call threw on load and a stored section could never be applied.
+- Read the section through the volatile references on each search instead of a
+  cached settings scope.
+- Drop the `@deepseek-ai/dsh-settings` dependency and raise the DSH peer range to
+  `^0.1.7-alpha.1` (`^4.0.3` for `@deepseek-ai/cordis`). `0.1.2` remains the last
+  release for the `0.1.0-rc.x` line.
+- Point the example Profile patch at the inline entry `config:` block. DSH 0.1.7
+  no longer reads a `<DSH_HOME>/settings.yaml` section for this package.
+- Fixes `configured web provider "codex-local" is registered but unavailable`:
+  with no surviving endpoint or model the provider's `available()` was false, and
+  a pinned `web.config.searchProvider` does not fall back to another provider.
+
+### 0.1.1 / 0.1.2
+
 - Add the standalone `@lyd123qw2008/dsh-web-search-codex` package under `dsh-web-search-codex/`.
 - Register `codex-local` on DSH `ctx.web` through the native Responses `web_search` server tool.
 - Fix the standalone DSH provider so it does not write an unknown provider-specific event into DSH durable Session logs.
